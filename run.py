@@ -38,10 +38,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+groq_api_key = os.getenv("GROQ_API_KEY")
+
 CONFIG = {
     "llm_type": "groq",
     "groq_model": "llama-3.1-70b-versatile",  # or "mixtral-8x7b-32768", "llama3-70b-8192"
-    "groq_api_key": "YOUR_GROQ_API_KEY_HERE",  # Add your key directly here
+    "groq_api_key": groq_api_key,
     "max_rounds": 3,
     "time_per_round": 120,
     "debate_format": "simple",
@@ -62,7 +64,7 @@ CONFIG = {
 
 
 def get_llm():
-    return ChatGroq(groq_api_key="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", model_name="openai/gpt-oss-20b")
+    return ChatGroq(groq_api_key=groq_api_key, model_name="openai/gpt-oss-20b")
 
 llm = get_llm()
 judge_llm = get_llm()
