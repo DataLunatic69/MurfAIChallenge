@@ -62,7 +62,7 @@ except ImportError as e:
 
 # Page Configuration
 st.set_page_config(
-    page_title="Formal Debate Chamber",
+    page_title="Murf Debate Chamber",
     page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -73,178 +73,393 @@ def load_custom_css():
     st.markdown("""
     <style>
     /* Import classical fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Crimson+Text:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Crimson+Text:wght@400;600&family=Libre+Baskerville:wght@400;700&display=swap');
     
-    /* Main background with wood grain texture */
+    /* Main background with elegant gradient */
     .stApp {
-        background: linear-gradient(
-            180deg,
-            rgba(40, 30, 20, 0.95) 0%,
-            rgba(55, 40, 30, 0.95) 50%,
-            rgba(40, 30, 20, 0.95) 100%
-        );
-        background-image: 
-            repeating-linear-gradient(
-                90deg,
-                rgba(60, 45, 35, 0.1) 0px,
-                rgba(80, 60, 45, 0.1) 3px,
-                rgba(60, 45, 35, 0.1) 6px
-            );
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        font-family: 'Libre Baskerville', serif;
     }
     
-    /* Header styling with brass accents */
-    h1, h2, h3 {
-        font-family: 'Playfair Display', serif !important;
-        color: #D4AF37 !important;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        letter-spacing: 1px;
-    }
-    
-    /* Embossed title effect */
-    .main-title {
+    /* Header styling with elegant typography */
+    .main-header {
+        font-family: 'Playfair Display', serif;
         font-size: 3.5rem;
         font-weight: 700;
         text-align: center;
-        color: #D4AF37;
-        text-shadow: 
-            0 1px 0 #ccc,
-            0 2px 0 #c9c9c9,
-            0 3px 0 #bbb,
-            0 4px 0 #b9b9b9,
-            0 5px 0 #aaa,
-            0 6px 1px rgba(0,0,0,.1),
-            0 0 5px rgba(0,0,0,.1),
-            0 1px 3px rgba(0,0,0,.3),
-            0 3px 5px rgba(0,0,0,.2),
-            0 5px 10px rgba(0,0,0,.25);
-        margin-bottom: 2rem;
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
     }
     
-    /* Leather-textured buttons */
-    .stButton > button {
-        background: linear-gradient(145deg, #5a453a, #3e2f26);
-        color: #D4AF37;
-        border: 2px solid #D4AF37;
-        border-radius: 8px;
-        padding: 12px 24px;
+    .sub-header {
         font-family: 'Crimson Text', serif;
-        font-size: 1.1rem;
-        font-weight: 600;
-        letter-spacing: 1px;
-        box-shadow: 
-            inset 0 -3px 7px rgba(0,0,0,0.5),
-            0 2px 3px rgba(0,0,0,0.3);
-        transition: all 0.3s ease;
-        text-transform: uppercase;
-    }
-    
-    .stButton > button:hover {
-        background: linear-gradient(145deg, #6a554a, #4e3f36);
-        box-shadow: 
-            inset 0 -3px 7px rgba(0,0,0,0.7),
-            0 4px 6px rgba(0,0,0,0.4);
-        transform: translateY(-2px);
-    }
-    
-    /* Parchment-style text areas */
-    .stTextArea textarea, .stTextInput input {
-        background: linear-gradient(145deg, #f5e6d3, #e8d7c3);
-        color: #2a1810;
-        border: 2px solid #8B7355;
-        border-radius: 6px;
-        font-family: 'Crimson Text', serif;
-        font-size: 1.05rem;
-        padding: 12px;
-        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    /* Score displays with brass plates */
-    .score-display {
-        background: linear-gradient(145deg, #D4AF37, #B8941F);
-        color: #1a1510;
-        padding: 15px 25px;
-        border-radius: 8px;
-        font-family: 'Playfair Display', serif;
-        font-size: 1.8rem;
-        font-weight: 700;
+        font-size: 1.3rem;
         text-align: center;
-        box-shadow: 
-            inset 0 2px 4px rgba(255,255,255,0.3),
-            0 4px 8px rgba(0,0,0,0.4);
-        border: 2px solid #8B7355;
+        color: #7f8c8d;
+        margin-bottom: 2rem;
+        font-style: italic;
     }
     
-    /* Argument cards with leather texture */
-    .argument-card {
-        background: linear-gradient(145deg, #3a2a20, #2a1a10);
-        border: 2px solid #D4AF37;
-        border-radius: 10px;
-        padding: 20px;
+    /* Elegant card styling */
+    .elegant-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
         margin: 15px 0;
-        box-shadow: 
-            0 6px 12px rgba(0,0,0,0.3),
-            inset 0 1px 0 rgba(255,255,255,0.1);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        border: 1px solid #e0e0e0;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     
-    .argument-card h4 {
-        color: #D4AF37;
+    .elegant-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+    }
+    
+    .elegant-card h4 {
+        color: #2c3e50;
         font-family: 'Playfair Display', serif;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
         font-size: 1.3rem;
     }
     
-    .argument-card p {
-        color: #e8d7c3;
+    .elegant-card p {
+        color: #2c3e50;
         font-family: 'Crimson Text', serif;
         line-height: 1.6;
         font-size: 1.05rem;
     }
     
-    /* Judge's gavel animation */
-    @keyframes gavel-strike {
-        0% { transform: rotate(0deg); }
-        50% { transform: rotate(-30deg); }
-        100% { transform: rotate(0deg); }
-    }
-    
-    .gavel-icon {
-        animation: gavel-strike 2s ease-in-out infinite;
-        display: inline-block;
-    }
-    
-    /* Progress bar with brass finish */
-    .stProgress > div > div > div {
-        background: linear-gradient(90deg, #D4AF37, #FFD700, #D4AF37);
-    }
-    
-    /* Select boxes */
-    .stSelectbox > div > div {
-        background: linear-gradient(145deg, #3a2a20, #2a1a10);
-        border: 2px solid #D4AF37;
-        color: #D4AF37;
-    }
-    
-    /* Metrics styling */
-    [data-testid="metric-container"] {
-        background: linear-gradient(145deg, #2a2015, #1a1510);
-        border: 2px solid #D4AF37;
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
         border-radius: 8px;
+        padding: 14px 28px;
+        font-family: 'Crimson Text', serif;
+        font-size: 1.1rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+    
+    /* Secondary button */
+    .secondary-button {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+    }
+    
+    /* Text area styling */
+    .stTextArea textarea {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
         padding: 15px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        font-family: 'Crimson Text', serif;
+        font-size: 1.05rem;
+        color: #2c3e50;
+        transition: border-color 0.3s ease;
     }
     
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background: linear-gradient(145deg, #3a2a20, #2a1a10);
-        border: 2px solid #D4AF37;
-        border-radius: 8px;
-        color: #D4AF37 !important;
+    .stTextArea textarea:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+    
+    .stTextArea textarea::placeholder {
+        color: #7f8c8d;
+        opacity: 0.8;
+    }
+    
+    /* Score displays */
+    .score-display {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .score-value {
+        font-size: 2.8rem;
+        font-weight: 700;
+        font-family: 'Playfair Display', serif;
+    }
+    
+    .score-label {
+        font-size: 1.1rem;
+        opacity: 0.9;
         font-family: 'Crimson Text', serif;
     }
     
-    /* Loading spinner */
-    .stSpinner > div {
-        border-color: #D4AF37 !important;
+    /* Progress bar */
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background: white;
+        border-radius: 8px 8px 0 0;
+        padding: 12px 24px;
+        font-family: 'Crimson Text', serif;
+        font-weight: 600;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    /* Metric styling */
+    [data-testid="metric-container"] {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    }
+    
+    /* Sidebar text styling */
+    .css-1d391kg .stMarkdown h1,
+    .css-1d391kg .stMarkdown h2,
+    .css-1d391kg .stMarkdown h3,
+    .css-1d391kg .stMarkdown h4 {
+        color: #ecf0f1 !important;
+    }
+    
+    .css-1d391kg .stMarkdown p,
+    .css-1d391kg .stMarkdown div {
+        color: #ecf0f1 !important;
+    }
+    
+    /* Sidebar input styling */
+    .css-1d391kg .stTextInput input,
+    .css-1d391kg .stTextArea textarea {
+        background: #34495e !important;
+        border: 2px solid #5d6d7e !important;
+        color: #ecf0f1 !important;
+        border-radius: 8px;
+    }
+    
+    .css-1d391kg .stTextInput input:focus,
+    .css-1d391kg .stTextArea textarea:focus {
+        border-color: #3498db !important;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2) !important;
+    }
+    
+    .css-1d391kg .stTextInput input::placeholder,
+    .css-1d391kg .stTextArea textarea::placeholder {
+        color: #bdc3c7 !important;
+    }
+    
+    /* Sidebar selectbox styling */
+    .css-1d391kg .stSelectbox > div > div {
+        background: #34495e !important;
+        border: 2px solid #5d6d7e !important;
+        color: #ecf0f1 !important;
+    }
+    
+    /* Sidebar slider styling */
+    .css-1d391kg .stSlider > div > div > div > div {
+        background: #3498db !important;
+    }
+    
+    .css-1d391kg .stSlider > div > div > div > div > div {
+        background: #ecf0f1 !important;
+        border: 2px solid #3498db !important;
+    }
+    
+    /* Sidebar checkbox styling */
+    .css-1d391kg .stCheckbox > div > div {
+        background: #34495e !important;
+        border: 2px solid #5d6d7e !important;
+    }
+    
+    .css-1d391kg .stCheckbox > div > div[data-testid="stCheckbox"] {
+        color: #ecf0f1 !important;
+    }
+    
+    /* Sidebar button styling */
+    .css-1d391kg .stButton > button {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+        color: #ecf0f1 !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 12px 24px !important;
+        font-family: 'Crimson Text', serif !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.5px !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .css-1d391kg .stButton > button:hover {
+        background: linear-gradient(135deg, #2980b9 0%, #3498db 100%) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.25) !important;
+    }
+    
+    /* Sidebar secondary button styling */
+    .css-1d391kg .stButton > button[data-baseweb="button"] {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    }
+    
+    .css-1d391kg .stButton > button[data-baseweb="button"]:hover {
+        background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%) !important;
+    }
+    
+    /* Sidebar label styling */
+    .css-1d391kg label {
+        color: #ecf0f1 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Sidebar help text styling */
+    .css-1d391kg .stMarkdown small {
+        color: #bdc3c7 !important;
+    }
+    
+    /* Argument cards */
+    .argument-card {
+        background: white;
+        border-left: 4px solid #667eea;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 15px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .argument-card.ai {
+        border-left-color: #f5576c;
+    }
+    
+    .argument-card h4 {
+        color: #2c3e50;
+        font-family: 'Playfair Display', serif;
+        margin-bottom: 10px;
+        font-size: 1.2rem;
+    }
+    
+    .argument-card p {
+        color: #7f8c8d;
+        font-family: 'Crimson Text', serif;
+        line-height: 1.6;
+        font-size: 1.05rem;
+    }
+    
+    /* Status indicators */
+    .status-indicator {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 5px 0;
+    }
+    
+    .status-active {
+        background: #4CAF50;
+        color: white;
+    }
+    
+    .status-waiting {
+        background: #FF9800;
+        color: white;
+    }
+    
+    .status-inactive {
+        background: #9E9E9E;
+        color: white;
+    }
+    
+    /* Feature highlights */
+    .feature-card {
+        text-align: center;
+        padding: 25px;
+        border-radius: 15px;
+        background: white;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .feature-card h4 {
+        color: #2c3e50;
+        font-family: 'Playfair Display', serif;
+        margin-bottom: 15px;
+        font-size: 1.3rem;
+    }
+    
+    .feature-card p {
+        color: #2c3e50;
+        font-family: 'Crimson Text', serif;
+        line-height: 1.6;
+        font-size: 1.05rem;
+    }
+    
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        color: #667eea;
+    }
+    
+    /* Welcome section */
+    .welcome-section {
+        text-align: center;
+        padding: 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 15px 50px rgba(0,0,0,0.1);
+        margin: 20px 0;
+    }
+    
+    /* Ensure all text in white cards is readable */
+    .stMarkdown div[data-testid="stMarkdownContainer"] {
+        color: #2c3e50;
+    }
+    
+    /* Override any light text colors in cards */
+    .stMarkdown div[data-testid="stMarkdownContainer"] h4,
+    .stMarkdown div[data-testid="stMarkdownContainer"] p {
+        color: #2c3e50 !important;
+    }
+    
+    /* Ensure input text is visible */
+    .stTextInput input,
+    .stTextArea textarea {
+        color: #2c3e50 !important;
+    }
+    
+    /* Ensure labels are visible */
+    .stTextInput label,
+    .stTextArea label {
+        color: #2c3e50 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -260,9 +475,9 @@ def init_session_state():
     if 'debate_active' not in st.session_state:
         st.session_state.debate_active = False
     if 'audio_enabled' not in st.session_state:
-        st.session_state.audio_enabled = MURF_CONFIG["api_key"] is not None if DEBATE_SYSTEM_AVAILABLE else False
+        st.session_state.audio_enabled = False
     if 'voice_input_enabled' not in st.session_state:
-        st.session_state.voice_input_enabled = CONFIG["openai_api_key"] is not None if DEBATE_SYSTEM_AVAILABLE else False
+        st.session_state.voice_input_enabled = False
     if 'user_argument' not in st.session_state:
         st.session_state.user_argument = ""
     if 'debate_transcript' not in st.session_state:
@@ -293,22 +508,101 @@ def init_session_state():
         st.session_state.user_argument_text = ""
     if 'debate_integration' not in st.session_state:
         st.session_state.debate_integration = debate_integration if DEBATE_INTEGRATION_AVAILABLE else DebateSystemIntegration()
+    
+    # API Keys
+    if 'openai_api_key' not in st.session_state:
+        st.session_state.openai_api_key = ""
+    if 'groq_api_key' not in st.session_state:
+        st.session_state.groq_api_key = ""
+    if 'murf_api_key' not in st.session_state:
+        st.session_state.murf_api_key = ""
 
-# Header with gavel icon
+# Update configuration with API keys
+def update_config_with_api_keys():
+    """Update the configuration objects with session state API keys."""
+    if DEBATE_SYSTEM_AVAILABLE:
+        if st.session_state.openai_api_key.strip():
+            CONFIG["openai_api_key"] = st.session_state.openai_api_key
+        if st.session_state.groq_api_key.strip():
+            CONFIG["groq_api_key"] = st.session_state.groq_api_key
+        if st.session_state.murf_api_key.strip():
+            MURF_CONFIG["api_key"] = st.session_state.murf_api_key
+
+# Header with elegant design
 def render_header():
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
         st.markdown("""
-        <div class="main-title">
-            ⚖️ FORMAL DEBATE CHAMBER ⚖️
+        <div class="main-header">
+            ⚖️ Murf Debate Chamber
+        </div>
+        <div class="sub-header">
+            A Distinguished Platform for Intellectual Discourse and Rhetorical Excellence
         </div>
         """, unsafe_allow_html=True)
-        st.markdown("<center><i>A Professional Forum for Intellectual Discourse</i></center>", unsafe_allow_html=True)
 
-# Sidebar configuration
+# Sidebar configuration with improved layout
 def render_sidebar():
     with st.sidebar:
-        st.markdown("## ⚙️ Chamber Configuration")
+        # API Keys Section
+        st.markdown("## 🔑 API Configuration")
+        st.markdown("---")
+        
+        openai_key = st.text_input(
+            "OpenAI API Key:",
+            value=st.session_state.openai_api_key,
+            type="password",
+            placeholder="sk-...",
+            help="Enter your OpenAI API key for GPT models"
+        )
+        if openai_key != st.session_state.openai_api_key:
+            st.session_state.openai_api_key = openai_key
+        
+        groq_key = st.text_input(
+            "Groq API Key:",
+            value=st.session_state.groq_api_key,
+            type="password",
+            placeholder="gsk_...",
+            help="Enter your Groq API key for fast inference"
+        )
+        if groq_key != st.session_state.groq_api_key:
+            st.session_state.groq_api_key = groq_key
+        
+        murf_key = st.text_input(
+            "Murf AI API Key:",
+            value=st.session_state.murf_api_key,
+            type="password",
+            placeholder="Enter your Murf AI key",
+            help="Enter your Murf AI API key for voice synthesis"
+        )
+        if murf_key != st.session_state.murf_api_key:
+            st.session_state.murf_api_key = murf_key
+        
+        # Update configuration when API keys change
+        if (openai_key != st.session_state.openai_api_key or 
+            groq_key != st.session_state.groq_api_key or 
+            murf_key != st.session_state.murf_api_key):
+            update_config_with_api_keys()
+        
+        # API Key Status
+        st.markdown("### 🔍 API Status")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            status_color = "🟢" if st.session_state.openai_api_key.strip() else "🔴"
+            st.markdown(f"{status_color} OpenAI")
+        
+        with col2:
+            status_color = "🟢" if st.session_state.groq_api_key.strip() else "🔴"
+            st.markdown(f"{status_color} Groq")
+        
+        with col3:
+            status_color = "🟢" if st.session_state.murf_api_key.strip() else "🔴"
+            st.markdown(f"{status_color} Murf AI")
+        
+        st.markdown("---")
+        
+        st.markdown("## ⚙️ Debate Configuration")
         st.markdown("---")
         
         # Topic selection
@@ -323,16 +617,17 @@ def render_sidebar():
         ]
         
         selected_preset = st.selectbox(
-            "Select a topic:",
+            "Select a debate topic:",
             preset_topics,
             key="topic_preset"
         )
         
         if selected_preset == "Custom Topic":
             topic = st.text_area(
-                "Enter your custom topic:",
+                "Enter your custom debate topic:",
                 height=100,
-                key="custom_topic"
+                key="custom_topic",
+                placeholder="e.g., Should renewable energy replace fossil fuels completely?"
             )
         else:
             topic = selected_preset
@@ -340,46 +635,53 @@ def render_sidebar():
         st.markdown("---")
         
         # Debate settings
-        st.markdown("### ⚡ Debate Settings")
+        st.markdown("### ⚡ Debate Parameters")
         
-        # Use separate variables instead of directly modifying session state
-        max_rounds = st.slider(
-            "Number of Rounds:",
-            min_value=1,
-            max_value=5,
-            value=st.session_state.debate_config["max_rounds"],
-            key="max_rounds_slider"
-        )
+        col1, col2 = st.columns(2)
+        with col1:
+            max_rounds = st.slider(
+                "Number of Rounds:",
+                min_value=1,
+                max_value=5,
+                value=st.session_state.debate_config["max_rounds"],
+                key="max_rounds_slider"
+            )
         
-        time_limit = st.slider(
-            "Time per Argument (seconds):",
-            min_value=30,
-            max_value=300,
-            value=st.session_state.debate_config["time_limit"],
-            step=30,
-            key="time_limit_slider"
-        )
+        with col2:
+            time_limit = st.slider(
+                "Time per Argument (s):",
+                min_value=30,
+                max_value=300,
+                value=st.session_state.debate_config["time_limit"],
+                step=30,
+                key="time_limit_slider"
+            )
         
-        # Update config without conflicting with widget keys
         st.session_state.debate_config["max_rounds"] = max_rounds
         st.session_state.debate_config["time_limit"] = time_limit
         
         st.markdown("---")
         
         # Audio settings
-        st.markdown("### 🔊 Audio Configuration")
+        st.markdown("### 🔊 Audio Settings")
+        
+        # Check if API keys are available
+        has_murf_key = bool(st.session_state.murf_api_key.strip())
+        has_openai_key = bool(st.session_state.openai_api_key.strip())
         
         audio_enabled = st.checkbox(
             "Enable Voice Output",
             value=st.session_state.audio_enabled,
-            disabled=not (DEBATE_SYSTEM_AVAILABLE and MURF_CONFIG.get("api_key")) if DEBATE_SYSTEM_AVAILABLE else True
+            disabled=not has_murf_key,
+            help="Enable AI voice responses (requires Murf AI API key)"
         )
         st.session_state.audio_enabled = audio_enabled
         
         voice_input = st.checkbox(
             "Enable Voice Input",
             value=st.session_state.voice_input_enabled,
-            disabled=not (DEBATE_SYSTEM_AVAILABLE and CONFIG.get("openai_api_key")) if DEBATE_SYSTEM_AVAILABLE else True
+            disabled=not has_openai_key,
+            help="Enable voice-to-text for your arguments (requires OpenAI API key)"
         )
         st.session_state.voice_input_enabled = voice_input
         
@@ -397,26 +699,29 @@ def render_sidebar():
         
         st.markdown("---")
         
-        # Start debate button
+        # Action buttons
         if not st.session_state.debate_active:
-            if st.button("🔨 **COMMENCE DEBATE**", use_container_width=True):
+            if st.button("🎯 **COMMENCE DEBATE**", use_container_width=True, type="primary"):
                 if topic and topic != "Custom Topic":
                     start_debate(topic, max_rounds)
                 else:
-                    st.error("Please select or enter a debate topic.")
+                    st.error("Please select or enter a valid debate topic.")
         else:
-            if st.button("⛔ **ADJOURN DEBATE**", use_container_width=True):
+            if st.button("⛔ **ADJOURN DEBATE**", use_container_width=True, type="secondary"):
                 stop_debate()
         
-        # Export options
         st.markdown("---")
-        st.markdown("### 📁 Export Options")
         
-        if st.button("💾 Save Transcript", use_container_width=True):
-            save_transcript()
+        # Export options
+        st.markdown("### 📁 Export Data")
         
-        if st.button("📊 Export Statistics", use_container_width=True):
-            export_statistics()
+        col_export1, col_export2 = st.columns(2)
+        with col_export1:
+            if st.button("💾 Save Transcript", use_container_width=True):
+                save_transcript()
+        with col_export2:
+            if st.button("📊 Export Stats", use_container_width=True):
+                export_statistics()
 
 # Main debate interface
 def render_main_interface():
@@ -425,104 +730,183 @@ def render_main_interface():
     else:
         render_debate_screen()
 
-# Welcome screen
+# Welcome screen with feature highlights
 def render_welcome_screen():
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("""
-        <div style='text-align: center; padding: 40px;'>
-            <h2>Welcome to the Formal Debate Chamber</h2>
-            <p style='font-size: 1.2rem; color: #D4AF37; font-family: Crimson Text, serif;'>
-                A distinguished platform for structured intellectual discourse,
-                featuring AI-powered opponents and impartial adjudication.
-            </p>
-            <br>
-            <p style='font-size: 1.1rem; color: #e8d7c3;'>
-                Configure your debate parameters in the sidebar and click
-                <b>COMMENCE DEBATE</b> to begin.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Feature highlights
-        st.markdown("---")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("""
-            <div class='argument-card'>
-                <h4>🎙️ Voice Integration</h4>
-                <p>Speak your arguments naturally with voice input and hear AI responses.</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("""
-            <div class='argument-card'>
-                <h4>⚖️ Impartial Judging</h4>
-                <p>AI-powered evaluation based on logic, evidence, and persuasiveness.</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown("""
-            <div class='argument-card'>
-                <h4>📊 Detailed Analytics</h4>
-                <p>Comprehensive scoring and feedback for continuous improvement.</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # System status
-        if not DEBATE_SYSTEM_AVAILABLE:
-            st.warning("⚠️ Debate system not fully loaded. Some features may be unavailable.")
-        if not DEBATE_INTEGRATION_AVAILABLE:
-            st.warning("⚠️ Debate integration not available. Using simulation mode.")
-
-# Active debate screen
-def render_debate_screen():
-    # Debate header info
-    st.markdown(f"""
-    <div style='background: linear-gradient(145deg, #2a2015, #1a1510); 
-                border: 3px solid #D4AF37; 
-                border-radius: 10px; 
-                padding: 20px; 
-                margin-bottom: 20px;'>
-        <h3 style='text-align: center; margin: 0;'>Current Debate</h3>
-        <p style='text-align: center; font-size: 1.2rem; color: #e8d7c3; margin-top: 10px;'>
-            {st.session_state.current_topic}
+    st.markdown("""
+    <div class="welcome-section">
+        <h2 style='font-family: "Playfair Display", serif; color: #2c3e50;'>
+            Welcome to the Murf Debate Chamber
+        </h2>
+        <p style='font-family: "Crimson Text", serif; color: #7f8c8d; font-size: 1.2rem;'>
+            Engage in sophisticated intellectual discourse with AI-powered opponents and impartial adjudication.
         </p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Progress and scores
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Feature highlights
+    st.markdown("### 🎯 Key Features")
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown(f"""
-        <div class='score-display'>
-            <div>USER</div>
-            <div style='font-size: 2.5rem;'>{st.session_state.user_score}</div>
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">🎙️</div>
+            <h4>Voice Integration</h4>
+            <p>Natural voice input and AI vocal responses for immersive debate experience</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        current_round = st.session_state.current_round
-        max_rounds = st.session_state.debate_config["max_rounds"]
-        progress = min(current_round / max_rounds, 1.0)
-        st.progress(progress)
-        st.markdown(f"<center><b>Round {current_round} of {max_rounds}</b></center>", unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class='score-display'>
-            <div>AI</div>
-            <div style='font-size: 2.5rem;'>{st.session_state.ai_score}</div>
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">⚖️</div>
+            <h4>Impartial Judging</h4>
+            <p>AI-powered evaluation based on logic, evidence, and rhetorical effectiveness</p>
         </div>
         """, unsafe_allow_html=True)
     
+    with col3:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h4>Detailed Analytics</h4>
+            <p>Comprehensive scoring, feedback, and performance metrics for improvement</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Quick start guide
     st.markdown("---")
+    st.markdown("### 🚀 Quick Start Guide")
+    
+    guide_col1, guide_col2, guide_col3 = st.columns(3)
+    
+    with guide_col1:
+        st.markdown("""
+        <div class="elegant-card">
+            <h4>1. Configure</h4>
+            <p>Select your debate topic and adjust parameters in the sidebar</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with guide_col2:
+        st.markdown("""
+        <div class="elegant-card">
+            <h4>2. Commence</h4>
+            <p>Click "Commence Debate" to start your intellectual engagement</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with guide_col3:
+        st.markdown("""
+        <div class="elegant-card">
+            <h4>3. Debate</h4>
+            <p>Present your arguments and respond to AI counterpoints</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # System status
+    st.markdown("---")
+    st.markdown("### 🔧 System Status")
+    
+    status_col1, status_col2 = st.columns(2)
+    
+    with status_col1:
+        status = "🟢 Available" if DEBATE_SYSTEM_AVAILABLE else "🔴 Unavailable"
+        st.markdown(f"**Debate System:** {status}")
+        
+        audio_status = "🟢 Enabled" if st.session_state.audio_enabled else "⚪ Disabled"
+        st.markdown(f"**Voice Output:** {audio_status}")
+    
+    with status_col2:
+        integration_status = "🟢 Available" if DEBATE_INTEGRATION_AVAILABLE else "🟡 Simulation Mode"
+        st.markdown(f"**AI Integration:** {integration_status}")
+        
+        voice_input_status = "🟢 Enabled" if st.session_state.voice_input_enabled else "⚪ Disabled"
+        st.markdown(f"**Voice Input:** {voice_input_status}")
+
+# Active debate screen
+def render_debate_screen():
+    # Debate header with status
+    col_header1, col_header2, col_header3 = st.columns([2, 1, 2])
+    
+    with col_header1:
+        st.markdown(f"""
+        <div class="elegant-card">
+            <h3>Current Debate</h3>
+            <p style="color: #667eea; font-size: 1.2rem;">{st.session_state.current_topic}</p>
+            <span class="status-indicator status-active">Round {st.session_state.current_round} of {st.session_state.debate_config['max_rounds']}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_header2:
+        speaker_status = "🎤 Your Turn" if st.session_state.current_speaker == 'user' else "🤖 AI's Turn"
+        status_class = "status-active" if st.session_state.current_speaker == 'user' else "status-waiting"
+        st.markdown(f"""
+        <div class="elegant-card" style="text-align: center;">
+            <h4>Current Speaker</h4>
+            <span class="status-indicator {status_class}">{speaker_status}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_header3:
+        st.markdown(f"""
+        <div class="elegant-card">
+            <h4>Time Remaining</h4>
+            <div style="text-align: center; font-size: 2rem; color: #667eea;">
+                {st.session_state.debate_config['time_limit']}s
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Score dashboard
+    st.markdown("---")
+    st.markdown("### 📊 Score Dashboard")
+    
+    col_score1, col_score2, col_score3, col_score4 = st.columns(4)
+    
+    with col_score1:
+        st.markdown(f"""
+        <div class="score-display">
+            <div class="score-label">USER SCORE</div>
+            <div class="score-value">{st.session_state.user_score}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_score2:
+        st.markdown(f"""
+        <div class="score-display">
+            <div class="score-label">AI SCORE</div>
+            <div class="score-value">{st.session_state.ai_score}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_score3:
+        progress = min(st.session_state.current_round / st.session_state.debate_config["max_rounds"], 1.0)
+        st.markdown(f"""
+        <div class="elegant-card">
+            <h4>Round Progress</h4>
+            <div style="text-align: center;">
+                {st.session_state.current_round} / {st.session_state.debate_config['max_rounds']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.progress(progress)
+    
+    with col_score4:
+        avg_user = calculate_average_score('user')
+        avg_ai = calculate_average_score('ai')
+        leader = "👤 You" if st.session_state.user_score > st.session_state.ai_score else "🤖 AI" if st.session_state.ai_score > st.session_state.user_score else "⚖️ Tie"
+        st.markdown(f"""
+        <div class="elegant-card">
+            <h4>Current Leader</h4>
+            <div style="text-align: center; font-size: 1.5rem; color: #667eea;">
+                {leader}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Debate content area
+    st.markdown("---")
     tab1, tab2, tab3 = st.tabs(["🎭 **Live Debate**", "📜 **Transcript**", "📊 **Analysis**"])
     
     with tab1:
@@ -540,98 +924,130 @@ def render_live_debate():
     
     with col1:
         st.markdown("### 👤 Your Position")
-        st.info(st.session_state.user_position or "Position will be assigned when debate starts")
+        st.markdown(f"""
+        <div class="elegant-card">
+            <p style="font-size: 1.1rem; color: #2c3e50;">{st.session_state.user_position}</p>
+        </div>
+        """, unsafe_allow_html=True)
         
         st.markdown("### 💬 Your Argument")
         
-        # Check if it's user's turn
         if st.session_state.current_speaker == 'user' and not st.session_state.waiting_for_ai:
-            # Create a form for argument submission
             with st.form(key="argument_form"):
                 user_argument = st.text_area(
-                    "Type your argument:",
+                    "Present your argument:",
                     height=150,
                     key="user_argument_text",
-                    value=st.session_state.get('transcribed_text', st.session_state.get('user_argument_text', ''))
+                    value=st.session_state.get('transcribed_text', st.session_state.get('user_argument_text', '')),
+                    placeholder="Type your argument here... (Minimum 50 characters)"
                 )
                 
-                col_a, col_b = st.columns([3, 1])
+                col_a, col_b = st.columns([2, 1])
                 with col_a:
-                    submit_button = st.form_submit_button("**SUBMIT ARGUMENT**", use_container_width=True)
+                    submit_button = st.form_submit_button("🚀 **SUBMIT ARGUMENT**", use_container_width=True)
                 with col_b:
                     if st.session_state.voice_input_enabled:
-                        voice_button = st.form_submit_button("🎤 Record", use_container_width=True)
+                        voice_button = st.form_submit_button("🎤 **VOICE INPUT**", use_container_width=True, type="secondary")
                     else:
                         voice_button = False
                 
                 if submit_button and user_argument:
                     submit_user_argument(user_argument)
-                    # Clear transcribed text after submission
                     if 'transcribed_text' in st.session_state:
                         st.session_state.transcribed_text = ""
                 elif voice_button:
                     record_voice_input()
         else:
-            if st.session_state.waiting_for_ai:
-                st.info("⏳ Waiting for AI response...")
-            else:
-                st.info("⏳ Waiting for your turn...")
+            st.markdown("""
+            <div class="elegant-card">
+                <p style="text-align: center; color: #7f8c8d;">
+                    ⏳ Waiting for your turn to speak...
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("### 🤖 AI Position")
-        st.info(st.session_state.ai_position or "Position will be assigned when debate starts")
+        st.markdown(f"""
+        <div class="elegant-card">
+            <p style="font-size: 1.1rem; color: #2c3e50;">{st.session_state.ai_position}</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        st.markdown("### 💭 AI Argument")
+        st.markdown("### 💭 AI's Response")
         
         if st.session_state.last_ai_argument:
             st.markdown(f"""
-            <div class='argument-card'>
+            <div class="argument-card ai">
+                <h4>🤖 AI Argument</h4>
                 <p>{st.session_state.last_ai_argument}</p>
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.info("⏳ AI preparing argument...")
+            st.markdown("""
+            <div class="elegant-card">
+                <p style="text-align: center; color: #7f8c8d;">
+                    ⏳ AI is preparing a response...
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Judge feedback section
     st.markdown("---")
     st.markdown("### ⚖️ Judge's Evaluation")
     
     if st.session_state.last_judge_feedback:
-        st.success(st.session_state.last_judge_feedback)
+        st.markdown(f"""
+        <div class="elegant-card" style="background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);">
+            <h4>🏆 Evaluation Results</h4>
+            <p style="font-size: 1.1rem; line-height: 1.6;">{st.session_state.last_judge_feedback}</p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.info("Awaiting arguments for evaluation...")
+        st.markdown("""
+        <div class="elegant-card">
+            <p style="text-align: center; color: #7f8c8d;">
+                📝 Awaiting arguments for evaluation...
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Transcript tab
 def render_transcript():
     if st.session_state.debate_transcript:
         for entry in st.session_state.debate_transcript:
-            if entry['speaker'] == 'user':
-                st.markdown(f"""
-                <div class='argument-card' style='border-color: #4CAF50;'>
-                    <h4>👤 User - Round {entry['round']}</h4>
-                    <p>{entry['content']}</p>
-                    <small>Score: {entry.get('score', 'Pending')}/40</small>
+            card_class = "argument-card" if entry['speaker'] == 'user' else "argument-card ai"
+            speaker_icon = "👤" if entry['speaker'] == 'user' else "🤖"
+            
+            st.markdown(f"""
+            <div class="{card_class}">
+                <h4>{speaker_icon} {entry['speaker'].upper()} - Round {entry['round']}</h4>
+                <p>{entry['content']}</p>
+                <div style="margin-top: 10px;">
+                    <small style="color: #667eea;">Score: {entry.get('score', 'Pending')}/40</small>
+                    <small style="color: #7f8c8d; margin-left: 15px;">
+                        {datetime.fromisoformat(entry['timestamp']).strftime('%H:%M:%S')}
+                    </small>
                 </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class='argument-card' style='border-color: #2196F3;'>
-                    <h4>🤖 AI - Round {entry['round']}</h4>
-                    <p>{entry['content']}</p>
-                    <small>Score: {entry.get('score', 'Pending')}/40</small>
-                </div>
-                """, unsafe_allow_html=True)
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.info("No arguments yet. The transcript will appear here as the debate progresses.")
+        st.markdown("""
+        <div class="elegant-card">
+            <p style="text-align: center; color: #7f8c8d;">
+                📄 No arguments yet. The transcript will appear here as the debate progresses.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Analysis tab
 def render_analysis():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### 📈 Score Progression")
+        st.markdown("### 📈 Performance Analytics")
+        
         if len(st.session_state.debate_transcript) > 0:
-            # Simple score visualization
             rounds = []
             user_scores = []
             ai_scores = []
@@ -645,23 +1061,35 @@ def render_analysis():
                         ai_scores.append(entry['score'])
             
             if rounds:
-                st.bar_chart({"User": user_scores, "AI": ai_scores})
+                chart_data = {
+                    "Round": rounds,
+                    "User Score": user_scores,
+                    "AI Score": ai_scores
+                }
+                st.line_chart(chart_data, x="Round", y=["User Score", "AI Score"])
         else:
-            st.info("Score analysis will appear after the first scored round.")
+            st.markdown("""
+            <div class="elegant-card">
+                <p style="text-align: center; color: #7f8c8d;">
+                    📊 Performance data will appear after scored rounds.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("### 🎯 Key Metrics")
-        col_a, col_b = st.columns(2)
         
-        with col_a:
+        col_metric1, col_metric2 = st.columns(2)
+        
+        with col_metric1:
             avg_user = calculate_average_score('user')
             st.metric("Avg. User Score", f"{avg_user:.1f}")
-            st.metric("Best User Round", get_best_round('user'))
+            st.metric("Total Rounds", st.session_state.current_round - 1)
         
-        with col_b:
+        with col_metric2:
             avg_ai = calculate_average_score('ai')
             st.metric("Avg. AI Score", f"{avg_ai:.1f}")
-            st.metric("Best AI Round", get_best_round('ai'))
+            st.metric("Score Difference", abs(st.session_state.user_score - st.session_state.ai_score))
     
     st.markdown("---")
     st.markdown("### 💡 Improvement Suggestions")
@@ -669,11 +1097,21 @@ def render_analysis():
     suggestions = generate_improvement_suggestions()
     if suggestions:
         for suggestion in suggestions:
-            st.warning(f"• {suggestion}")
+            st.markdown(f"""
+            <div class="elegant-card" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+                <p>💡 {suggestion}</p>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.info("Suggestions will appear based on judge feedback.")
+        st.markdown("""
+        <div class="elegant-card">
+            <p style="text-align: center; color: #7f8c8d;">
+                💡 Suggestions will appear based on your performance.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-# Helper functions
+# Helper functions (keep the same as before)
 def start_debate(topic: str, max_rounds: int):
     """Initialize and start a new debate."""
     st.session_state.debate_active = True
@@ -909,6 +1347,9 @@ def main():
     
     # Initialize session state
     init_session_state()
+    
+    # Update configuration with API keys
+    update_config_with_api_keys()
     
     # Render header
     render_header()
