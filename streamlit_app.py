@@ -1,1364 +1,837 @@
-# Professional Debate System - Streamlit UI
-# streamlit_app.py
-
+# streamlit_app.py - Enhanced Dynamic UI
 import streamlit as st
-import streamlit.components.v1 as components
-from datetime import datetime
-import json
 import time
+import json
+from datetime import datetime
 import threading
-from typing import Dict, List, Optional
-import os
-import base64
+import queue
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, Dict, Any
+import speech_recognition as sr
+import tempfile
+import os
 
-# Import the debate system with proper error handling
-try:
-    from run import (
-        enhanced_debate_app, 
-        DebateState, 
-        SpeakerType,
-        DebatePhase,
-        audio_streamer,
-        speak_text_streaming,
-        speech_to_text_whisper_api,
-        CONFIG,
-        MURF_CONFIG,
-        cleanup_audio
-    )
-    DEBATE_SYSTEM_AVAILABLE = True
-except ImportError as e:
-    print(f"Warning: Debate system not fully available: {e}")
-    DEBATE_SYSTEM_AVAILABLE = False
+# Import from run.py
+from run import (
+    CONFIG, MURF_CONFIG, WHISPER_CONFIG,
+    get_llm, llm, judge_llm,
+    SpeakerType, DebatePhase, Argument, Score, DebateContext,
+    speak_text_streaming, audio_streamer,
+    speech_to_text_whisper_api, openai_client,
+    extract_key_points, detect_repetition, analyze_opponent_argument,
+    JudgeScore, ArgumentAnalysis
+)
 
-# Import the debate integration
-try:
-    from debate_integration import DebateSystemIntegration, debate_integration
-    DEBATE_INTEGRATION_AVAILABLE = True
-except ImportError as e:
-    print(f"Warning: Debate integration not available: {e}")
-    DEBATE_INTEGRATION_AVAILABLE = False
-    # Create a mock class for fallback
-    class DebateSystemIntegration:
-        def __init__(self):
-            self.is_running = False
-        
-        def start_debate(self, topic, config):
-            return {"success": True, "positions": {"user_position": "For", "ai_position": "Against"}}
-        
-        def submit_user_argument(self, argument):
-            return {
-                "success": True, 
-                "user_score": 30, 
-                "user_feedback": "Good argument",
-                "ai_response": "This is a simulated AI response.",
-                "ai_score": 28,
-                "ai_feedback": "Standard response",
-                "round_complete": True
-            }
-    
-    debate_integration = DebateSystemIntegration()
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.output_parsers import PydanticOutputParser
 
-# Page Configuration
+# Page configuration
 st.set_page_config(
-    page_title="Murf Debate Chamber",
+    page_title="AI Debate Chamber",
     page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Professional Courtroom Aesthetic
-def load_custom_css():
+# Custom CSS
+def inject_custom_css():
     st.markdown("""
     <style>
-    /* Import classical fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Crimson+Text:wght@400;600&family=Libre+Baskerville:wght@400;700&display=swap');
+    .stApp { background-color: #f8f9fa; }
     
-    /* Main background with elegant gradient */
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        font-family: 'Libre Baskerville', serif;
-    }
-    
-    /* Header styling with elegant typography */
-    .main-header {
-        font-family: 'Playfair Display', serif;
-        font-size: 3.5rem;
-        font-weight: 700;
-        text-align: center;
-        color: #2c3e50;
-        margin-bottom: 1rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .sub-header {
-        font-family: 'Crimson Text', serif;
-        font-size: 1.3rem;
-        text-align: center;
-        color: #7f8c8d;
+    .debate-header {
+        background: linear-gradient(135deg, #2c3e50, #4a6580);
+        color: white;
+        padding: 2rem;
+        border-radius: 10px;
         margin-bottom: 2rem;
-        font-style: italic;
+        text-align: center;
     }
     
-    /* Elegant card styling */
-    .elegant-card {
-        background: white;
-        border-radius: 15px;
-        padding: 25px;
-        margin: 15px 0;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        border: 1px solid #e0e0e0;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    
-    .elegant-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 15px 40px rgba(0,0,0,0.15);
-    }
-    
-    .elegant-card h4 {
-        color: #2c3e50;
-        font-family: 'Playfair Display', serif;
-        margin-bottom: 15px;
-        font-size: 1.3rem;
-    }
-    
-    .elegant-card p {
-        color: #2c3e50;
-        font-family: 'Crimson Text', serif;
-        line-height: 1.6;
-        font-size: 1.05rem;
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 14px 28px;
-        font-family: 'Crimson Text', serif;
-        font-size: 1.1rem;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-        width: 100%;
-    }
-    
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-    }
-    
-    /* Secondary button */
-    .secondary-button {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
-    }
-    
-    /* Text area styling */
-    .stTextArea textarea {
-        background: #f8f9fa;
-        border: 2px solid #e9ecef;
+    .user-arg {
+        background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+        padding: 1.5rem;
         border-radius: 10px;
-        padding: 15px;
-        font-family: 'Crimson Text', serif;
-        font-size: 1.05rem;
-        color: #2c3e50;
-        transition: border-color 0.3s ease;
+        margin: 1rem 0;
+        border-left: 5px solid #1976d2;
+        animation: slideIn 0.5s ease;
     }
     
-    .stTextArea textarea:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    .ai-arg {
+        background: linear-gradient(135deg, #f1f8e9, #dcedc8);
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border-left: 5px solid #689f38;
+        animation: slideIn 0.5s ease;
     }
     
-    .stTextArea textarea::placeholder {
-        color: #7f8c8d;
-        opacity: 0.8;
+    .judge-feedback {
+        background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border-left: 5px solid #f57c00;
     }
     
-    /* Score displays */
     .score-display {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        text-align: center;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    }
-    
-    .score-value {
-        font-size: 2.8rem;
-        font-weight: 700;
-        font-family: 'Playfair Display', serif;
-    }
-    
-    .score-label {
-        font-size: 1.1rem;
-        opacity: 0.9;
-        font-family: 'Crimson Text', serif;
-    }
-    
-    /* Progress bar */
-    .stProgress > div > div > div {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        background: white;
+        padding: 1rem;
         border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: white;
-        border-radius: 8px 8px 0 0;
-        padding: 12px 24px;
-        font-family: 'Crimson Text', serif;
-        font-weight: 600;
-        border: 1px solid #e0e0e0;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
-    
-    /* Metric styling */
-    [data-testid="metric-container"] {
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-    }
-    
-    /* Sidebar text styling */
-    .css-1d391kg .stMarkdown h1,
-    .css-1d391kg .stMarkdown h2,
-    .css-1d391kg .stMarkdown h3,
-    .css-1d391kg .stMarkdown h4 {
-        color: #ecf0f1 !important;
-    }
-    
-    .css-1d391kg .stMarkdown p,
-    .css-1d391kg .stMarkdown div {
-        color: #ecf0f1 !important;
-    }
-    
-    /* Sidebar input styling */
-    .css-1d391kg .stTextInput input,
-    .css-1d391kg .stTextArea textarea {
-        background: #34495e !important;
-        border: 2px solid #5d6d7e !important;
-        color: #ecf0f1 !important;
-        border-radius: 8px;
-    }
-    
-    .css-1d391kg .stTextInput input:focus,
-    .css-1d391kg .stTextArea textarea:focus {
-        border-color: #3498db !important;
-        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2) !important;
-    }
-    
-    .css-1d391kg .stTextInput input::placeholder,
-    .css-1d391kg .stTextArea textarea::placeholder {
-        color: #bdc3c7 !important;
-    }
-    
-    /* Sidebar selectbox styling */
-    .css-1d391kg .stSelectbox > div > div {
-        background: #34495e !important;
-        border: 2px solid #5d6d7e !important;
-        color: #ecf0f1 !important;
-    }
-    
-    /* Sidebar slider styling */
-    .css-1d391kg .stSlider > div > div > div > div {
-        background: #3498db !important;
-    }
-    
-    .css-1d391kg .stSlider > div > div > div > div > div {
-        background: #ecf0f1 !important;
-        border: 2px solid #3498db !important;
-    }
-    
-    /* Sidebar checkbox styling */
-    .css-1d391kg .stCheckbox > div > div {
-        background: #34495e !important;
-        border: 2px solid #5d6d7e !important;
-    }
-    
-    .css-1d391kg .stCheckbox > div > div[data-testid="stCheckbox"] {
-        color: #ecf0f1 !important;
-    }
-    
-    /* Sidebar button styling */
-    .css-1d391kg .stButton > button {
-        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
-        color: #ecf0f1 !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 12px 24px !important;
-        font-family: 'Crimson Text', serif !important;
-        font-size: 1rem !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.5px !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
-        transition: all 0.3s ease !important;
-    }
-    
-    .css-1d391kg .stButton > button:hover {
-        background: linear-gradient(135deg, #2980b9 0%, #3498db 100%) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.25) !important;
-    }
-    
-    /* Sidebar secondary button styling */
-    .css-1d391kg .stButton > button[data-baseweb="button"] {
-        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
-    }
-    
-    .css-1d391kg .stButton > button[data-baseweb="button"]:hover {
-        background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%) !important;
-    }
-    
-    /* Sidebar label styling */
-    .css-1d391kg label {
-        color: #ecf0f1 !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Sidebar help text styling */
-    .css-1d391kg .stMarkdown small {
-        color: #bdc3c7 !important;
-    }
-    
-    /* Argument cards */
-    .argument-card {
-        background: white;
-        border-left: 4px solid #667eea;
-        border-radius: 8px;
-        padding: 20px;
-        margin: 15px 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    
-    .argument-card.ai {
-        border-left-color: #f5576c;
-    }
-    
-    .argument-card h4 {
-        color: #2c3e50;
-        font-family: 'Playfair Display', serif;
-        margin-bottom: 10px;
-        font-size: 1.2rem;
-    }
-    
-    .argument-card p {
-        color: #7f8c8d;
-        font-family: 'Crimson Text', serif;
-        line-height: 1.6;
-        font-size: 1.05rem;
-    }
-    
-    /* Status indicators */
-    .status-indicator {
+    .speaking-indicator {
         display: inline-block;
-        padding: 6px 12px;
+        padding: 0.5rem 1rem;
+        background: #4caf50;
+        color: white;
         border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        margin: 5px 0;
+        animation: pulse 1.5s infinite;
     }
     
-    .status-active {
-        background: #4CAF50;
+    .listening-indicator {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: #ff9800;
         color: white;
-    }
-    
-    .status-waiting {
-        background: #FF9800;
-        color: white;
-    }
-    
-    .status-inactive {
-        background: #9E9E9E;
-        color: white;
-    }
-    
-    /* Feature highlights */
-    .feature-card {
-        text-align: center;
-        padding: 25px;
-        border-radius: 15px;
-        background: white;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease;
-    }
-    
-    .feature-card:hover {
-        transform: translateY(-5px);
-    }
-    
-    .feature-card h4 {
-        color: #2c3e50;
-        font-family: 'Playfair Display', serif;
-        margin-bottom: 15px;
-        font-size: 1.3rem;
-    }
-    
-    .feature-card p {
-        color: #2c3e50;
-        font-family: 'Crimson Text', serif;
-        line-height: 1.6;
-        font-size: 1.05rem;
-    }
-    
-    .feature-icon {
-        font-size: 3rem;
-        margin-bottom: 15px;
-        color: #667eea;
-    }
-    
-    /* Welcome section */
-    .welcome-section {
-        text-align: center;
-        padding: 40px;
-        background: white;
         border-radius: 20px;
-        box-shadow: 0 15px 50px rgba(0,0,0,0.1);
-        margin: 20px 0;
+        animation: pulse 1.5s infinite;
     }
     
-    /* Ensure all text in white cards is readable */
-    .stMarkdown div[data-testid="stMarkdownContainer"] {
-        color: #2c3e50;
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.6; }
+        100% { opacity: 1; }
     }
     
-    /* Override any light text colors in cards */
-    .stMarkdown div[data-testid="stMarkdownContainer"] h4,
-    .stMarkdown div[data-testid="stMarkdownContainer"] p {
-        color: #2c3e50 !important;
+    @keyframes slideIn {
+        from { 
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
     }
     
-    /* Ensure input text is visible */
-    .stTextInput input,
-    .stTextArea textarea {
-        color: #2c3e50 !important;
+    .voice-input-area {
+        background: linear-gradient(135deg, #e8eaf6, #c5cae9);
+        padding: 2rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        text-align: center;
     }
     
-    /* Ensure labels are visible */
-    .stTextInput label,
-    .stTextArea label {
-        color: #2c3e50 !important;
+    .round-indicator {
+        background: #2c3e50;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        margin: 0.5rem;
+        display: inline-block;
     }
+    
+    .status-active { color: #4caf50; font-weight: bold; }
+    .status-waiting { color: #ff9800; font-weight: bold; }
+    .status-complete { color: #2196f3; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 # Initialize session state
 def init_session_state():
-    if 'debate_state' not in st.session_state:
-        st.session_state.debate_state = None
-    if 'debate_history' not in st.session_state:
-        st.session_state.debate_history = []
-    if 'current_round' not in st.session_state:
-        st.session_state.current_round = 1
-    if 'debate_active' not in st.session_state:
-        st.session_state.debate_active = False
-    if 'audio_enabled' not in st.session_state:
-        st.session_state.audio_enabled = False
-    if 'voice_input_enabled' not in st.session_state:
-        st.session_state.voice_input_enabled = False
-    if 'user_argument' not in st.session_state:
-        st.session_state.user_argument = ""
-    if 'debate_transcript' not in st.session_state:
-        st.session_state.debate_transcript = []
-    if 'current_topic' not in st.session_state:
-        st.session_state.current_topic = ""
-    if 'user_position' not in st.session_state:
-        st.session_state.user_position = ""
-    if 'ai_position' not in st.session_state:
-        st.session_state.ai_position = ""
-    if 'user_score' not in st.session_state:
-        st.session_state.user_score = 0
-    if 'ai_score' not in st.session_state:
-        st.session_state.ai_score = 0
-    if 'debate_config' not in st.session_state:
-        st.session_state.debate_config = {"max_rounds": 3, "time_limit": 120}
-    if 'current_speaker' not in st.session_state:
-        st.session_state.current_speaker = None
-    if 'waiting_for_ai' not in st.session_state:
-        st.session_state.waiting_for_ai = False
-    if 'last_ai_argument' not in st.session_state:
-        st.session_state.last_ai_argument = ""
-    if 'last_judge_feedback' not in st.session_state:
-        st.session_state.last_judge_feedback = ""
-    if 'transcribed_text' not in st.session_state:
-        st.session_state.transcribed_text = ""
-    if 'user_argument_text' not in st.session_state:
-        st.session_state.user_argument_text = ""
-    if 'debate_integration' not in st.session_state:
-        st.session_state.debate_integration = debate_integration if DEBATE_INTEGRATION_AVAILABLE else DebateSystemIntegration()
+    defaults = {
+        'debate_active': False,
+        'debate_phase': 'setup',
+        'topic': '',
+        'user_position': '',
+        'ai_position': '',
+        'arguments': [],
+        'scores': [],
+        'current_round': 1,
+        'max_rounds': 3,
+        'current_speaker': None,
+        'user_input_ready': False,
+        'user_argument': '',
+        'ai_argument': '',
+        'judge_feedback': '',
+        'waiting_for_user': False,
+        'debate_context': None,
+        'first_speaker': None,
+        'turn_count': 0,
+        'final_winner': None,
+        'is_listening': False,
+        'voice_enabled': True,
+        'auto_advance': True
+    }
     
-    # API Keys
-    if 'openai_api_key' not in st.session_state:
-        st.session_state.openai_api_key = ""
-    if 'groq_api_key' not in st.session_state:
-        st.session_state.groq_api_key = ""
-    if 'murf_api_key' not in st.session_state:
-        st.session_state.murf_api_key = ""
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-# Update configuration with API keys
-def update_config_with_api_keys():
-    """Update the configuration objects with session state API keys."""
-    if DEBATE_SYSTEM_AVAILABLE:
-        if st.session_state.openai_api_key.strip():
-            CONFIG["openai_api_key"] = st.session_state.openai_api_key
-        if st.session_state.groq_api_key.strip():
-            CONFIG["groq_api_key"] = st.session_state.groq_api_key
-        if st.session_state.murf_api_key.strip():
-            MURF_CONFIG["api_key"] = st.session_state.murf_api_key
+# Voice input handler
+def capture_voice_input():
+    """Capture voice input using Whisper API"""
+    if not openai_client:
+        st.error("OpenAI API key not configured for voice input")
+        return None
+    
+    recognizer = sr.Recognizer()
+    microphone = sr.Microphone()
+    
+    try:
+        with microphone as source:
+            st.session_state.is_listening = True
+            recognizer.adjust_for_ambient_noise(source, duration=1.0)
+            
+            # Create placeholder for listening status
+            with st.spinner("🎤 Listening... Speak now!"):
+                audio = recognizer.listen(
+                    source, 
+                    timeout=WHISPER_CONFIG["timeout"],
+                    phrase_time_limit=WHISPER_CONFIG["phrase_time_limit"]
+                )
+        
+        st.session_state.is_listening = False
+        
+        # Save audio to temp file
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+            with open(tmp.name, 'wb') as f:
+                f.write(audio.get_wav_data())
+            audio_path = tmp.name
+        
+        # Transcribe with Whisper
+        with st.spinner("Processing speech..."):
+            with open(audio_path, 'rb') as audio_file:
+                transcript = openai_client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="en",
+                    response_format="text"
+                )
+        
+        os.unlink(audio_path)
+        
+        if transcript and transcript.strip():
+            return transcript.strip()
+        return None
+        
+    except sr.WaitTimeoutError:
+        st.warning("No speech detected. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"Speech recognition error: {e}")
+        return None
+    finally:
+        st.session_state.is_listening = False
 
-# Header with elegant design
-def render_header():
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col2:
-        st.markdown("""
-        <div class="main-header">
-            ⚖️ Murf Debate Chamber
-        </div>
-        <div class="sub-header">
-            A Distinguished Platform for Intellectual Discourse and Rhetorical Excellence
-        </div>
-        """, unsafe_allow_html=True)
-
-# Sidebar configuration with improved layout
-def render_sidebar():
-    with st.sidebar:
-        # API Keys Section
-        st.markdown("## 🔑 API Configuration")
-        st.markdown("---")
+# Main debate controller
+class DebateController:
+    def __init__(self):
+        self.llm = get_llm()
+        self.judge_llm = get_llm()
+    
+    def setup_debate(self, topic):
+        """Initialize debate with topic and positions"""
+        st.session_state.topic = topic
         
-        openai_key = st.text_input(
-            "OpenAI API Key:",
-            value=st.session_state.openai_api_key,
-            type="password",
-            placeholder="sk-...",
-            help="Enter your OpenAI API key for GPT models"
+        # Generate positions
+        prompt = f"""Given the debate topic: "{topic}"
+        What are the two main opposing positions?
+        Format: 
+        FOR: [position supporting the proposition]
+        AGAINST: [position opposing the proposition]"""
+        
+        response = self.llm.invoke([HumanMessage(content=prompt)])
+        lines = response.content.strip().split('\n')
+        
+        st.session_state.user_position = lines[0].replace("FOR:", "").strip() if lines else "In favor"
+        st.session_state.ai_position = lines[1].replace("AGAINST:", "").strip() if len(lines) > 1 else "Against"
+        
+        # Initialize debate context
+        st.session_state.debate_context = {
+            'user_main_points': [],
+            'ai_main_points': [],
+            'unaddressed_points': {'user': [], 'ai': []},
+            'evidence_used': {'user': [], 'ai': []}
+        }
+        
+        # Select first speaker
+        import random
+        st.session_state.first_speaker = random.choice(['user', 'ai'])
+        st.session_state.current_speaker = st.session_state.first_speaker
+        st.session_state.debate_phase = 'debate'
+        st.session_state.debate_active = True
+        
+        return True
+    
+    def process_user_argument(self, argument_text):
+        """Process and validate user argument"""
+        if len(argument_text) < 20:
+            return False, "Argument too short. Please provide more detail (at least 20 characters)."
+        
+        # Check for repetition
+        is_repetitive, similar_to = detect_repetition(
+            argument_text, 
+            st.session_state.arguments, 
+            'user'
         )
-        if openai_key != st.session_state.openai_api_key:
-            st.session_state.openai_api_key = openai_key
         
-        groq_key = st.text_input(
-            "Groq API Key:",
-            value=st.session_state.groq_api_key,
-            type="password",
-            placeholder="gsk_...",
-            help="Enter your Groq API key for fast inference"
-        )
-        if groq_key != st.session_state.groq_api_key:
-            st.session_state.groq_api_key = groq_key
+        if is_repetitive:
+            st.warning(f"This seems similar to a previous argument. Consider a new angle.")
         
-        murf_key = st.text_input(
-            "Murf AI API Key:",
-            value=st.session_state.murf_api_key,
-            type="password",
-            placeholder="Enter your Murf AI key",
-            help="Enter your Murf AI API key for voice synthesis"
-        )
-        if murf_key != st.session_state.murf_api_key:
-            st.session_state.murf_api_key = murf_key
+        # Extract key points
+        key_points = extract_key_points(argument_text, self.llm)
         
-        # Update configuration when API keys change
-        if (openai_key != st.session_state.openai_api_key or 
-            groq_key != st.session_state.groq_api_key or 
-            murf_key != st.session_state.murf_api_key):
-            update_config_with_api_keys()
+        # Create argument record
+        argument = {
+            'speaker': 'user',
+            'content': argument_text,
+            'timestamp': time.time(),
+            'round_number': st.session_state.current_round,
+            'key_points': key_points,
+            'rebuts_points': []
+        }
         
-        # API Key Status
-        st.markdown("### 🔍 API Status")
-        col1, col2, col3 = st.columns(3)
+        st.session_state.arguments.append(argument)
+        st.session_state.debate_context['user_main_points'].extend(key_points)
+        st.session_state.turn_count += 1
         
-        with col1:
-            status_color = "🟢" if st.session_state.openai_api_key.strip() else "🔴"
-            st.markdown(f"{status_color} OpenAI")
-        
-        with col2:
-            status_color = "🟢" if st.session_state.groq_api_key.strip() else "🔴"
-            st.markdown(f"{status_color} Groq")
-        
-        with col3:
-            status_color = "🟢" if st.session_state.murf_api_key.strip() else "🔴"
-            st.markdown(f"{status_color} Murf AI")
-        
-        st.markdown("---")
-        
-        st.markdown("## ⚙️ Debate Configuration")
-        st.markdown("---")
-        
-        # Topic selection
-        st.markdown("### 📜 Debate Topic")
-        preset_topics = [
-            "Custom Topic",
-            "Should artificial intelligence be regulated by the government?",
-            "Is artificial general intelligence an existential threat to humanity?",
-            "Should governments implement universal basic income?",
-            "Is remote work better than office work for productivity?",
-            "Should social media platforms be held responsible for user-generated content?"
+        return True, "Argument processed successfully"
+    
+    def generate_ai_argument(self):
+        """Generate AI's debate argument"""
+        recent_user_args = [
+            arg for arg in st.session_state.arguments 
+            if arg['speaker'] == 'user'
         ]
         
-        selected_preset = st.selectbox(
-            "Select a debate topic:",
-            preset_topics,
-            key="topic_preset"
-        )
-        
-        if selected_preset == "Custom Topic":
-            topic = st.text_area(
-                "Enter your custom debate topic:",
-                height=100,
-                key="custom_topic",
-                placeholder="e.g., Should renewable energy replace fossil fuels completely?"
+        opponent_analysis = None
+        if recent_user_args:
+            last_user_arg = recent_user_args[-1]
+            opponent_analysis = analyze_opponent_argument(
+                last_user_arg['content'], 
+                self.llm
             )
-        else:
-            topic = selected_preset
-            
-        st.markdown("---")
         
-        # Debate settings
-        st.markdown("### ⚡ Debate Parameters")
+        # Build prompt
+        system_prompt = f"""You are participating in a formal debate.
+Topic: {st.session_state.topic}
+Your position: {st.session_state.ai_position}
+Current round: {st.session_state.current_round} of {st.session_state.max_rounds}
+
+IMPORTANT: 
+- Keep your argument CONCISE and to the point (2-3 sentences maximum)
+- Make NEW arguments, address opponent's claims, use different evidence
+- Be direct and avoid unnecessary elaboration
+- Focus on the strongest points only"""
+        
+        user_prompt = ""
+        if opponent_analysis:
+            user_prompt += f"""Opponent's main claims:
+{chr(10).join([f"- {claim}" for claim in opponent_analysis.main_claims])}
+
+Weak points to address:
+{chr(10).join([f"- {weak}" for weak in opponent_analysis.weak_points])}
+
+"""
+        
+        round_type = "Opening argument" if st.session_state.current_round == 1 else \
+                    "Rebuttal" if st.session_state.current_round == 2 else "Closing"
+        user_prompt += f"Provide your {round_type}:"
+        
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
+        ]
+        
+        response = self.llm.invoke(messages)
+        ai_argument = response.content
+        
+        # Extract key points
+        key_points = extract_key_points(ai_argument, self.llm)
+        
+        # Create argument record
+        argument = {
+            'speaker': 'ai',
+            'content': ai_argument,
+            'timestamp': time.time(),
+            'round_number': st.session_state.current_round,
+            'key_points': key_points,
+            'rebuts_points': opponent_analysis.main_claims[:2] if opponent_analysis else []
+        }
+        
+        st.session_state.arguments.append(argument)
+        st.session_state.debate_context['ai_main_points'].extend(key_points)
+        st.session_state.turn_count += 1
+        st.session_state.ai_argument = ai_argument
+        
+        return ai_argument
+    
+    def judge_argument(self, argument, speaker):
+        """Judge the most recent argument"""
+        parser = PydanticOutputParser(pydantic_object=JudgeScore)
+        
+        system_prompt = f"""You are an impartial debate judge. Score each criterion from 1-10.
+
+Scoring criteria:
+- Logical coherence: Clear reasoning and structure
+- Evidence/support: Use of facts, examples, data
+- Relevance: Directly addresses the topic
+- Persuasiveness: Compelling and convincing delivery
+
+{parser.get_format_instructions()}"""
+        
+        position = st.session_state.user_position if speaker == 'user' else st.session_state.ai_position
+        
+        user_prompt = f"""Topic: {st.session_state.topic}
+Speaker: {speaker}
+Position: {position}
+Round: {st.session_state.current_round}
+
+Argument to evaluate:
+{argument}
+
+Provide your evaluation:"""
+        
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
+        ]
+        
+        try:
+            response = self.judge_llm.invoke(messages)
+            evaluation = parser.parse(response.content)
+        except:
+            evaluation = JudgeScore(
+                logical_coherence=7,
+                evidence_support=6,
+                relevance=8,
+                persuasiveness=7,
+                total_score=28,
+                reasoning="Standard evaluation applied.",
+                strengths=["Clear argument"],
+                weaknesses=["Could use more evidence"]
+            )
+        
+        score = {
+            'user_score': evaluation.total_score if speaker == 'user' else 0,
+            'ai_score': evaluation.total_score if speaker == 'ai' else 0,
+            'round_number': st.session_state.current_round,
+            'reasoning': evaluation.reasoning,
+            'detailed_scores': {
+                'logical_coherence': evaluation.logical_coherence,
+                'evidence_support': evaluation.evidence_support,
+                'relevance': evaluation.relevance,
+                'persuasiveness': evaluation.persuasiveness
+            }
+        }
+        
+        st.session_state.scores.append(score)
+        st.session_state.judge_feedback = evaluation.reasoning
+        
+        return evaluation
+    
+    def check_round_complete(self):
+        """Check if current round is complete"""
+        speakers_in_round = [
+            arg['speaker'] for arg in st.session_state.arguments 
+            if arg['round_number'] == st.session_state.current_round
+        ]
+        
+        is_complete = 'user' in speakers_in_round and 'ai' in speakers_in_round
+        
+        # Debug logging
+        print(f"Round {st.session_state.current_round} check:")
+        print(f"  Arguments in this round: {speakers_in_round}")
+        print(f"  Is complete: {is_complete}")
+        
+        return is_complete
+    
+    def advance_round(self):
+        """Move to next round or end debate"""
+        print(f"Advancing round from {st.session_state.current_round} to {st.session_state.current_round + 1}")
+        
+        if st.session_state.current_round >= st.session_state.max_rounds:
+            print("Max rounds reached, ending debate")
+            self.end_debate()
+        else:
+            st.session_state.current_round += 1
+            # Alternate who goes first each round
+            st.session_state.current_speaker = 'ai' if st.session_state.first_speaker == 'user' else 'user'
+            print(f"Advanced to round {st.session_state.current_round}, next speaker: {st.session_state.current_speaker}")
+    
+    def end_debate(self):
+        """Calculate final scores and end debate"""
+        total_user = sum(s['user_score'] for s in st.session_state.scores)
+        total_ai = sum(s['ai_score'] for s in st.session_state.scores)
+        
+        if total_user > total_ai:
+            st.session_state.final_winner = f"User wins by {total_user - total_ai} points!"
+        elif total_ai > total_user:
+            st.session_state.final_winner = f"AI wins by {total_ai - total_user} points!"
+        else:
+            st.session_state.final_winner = "It's a tie!"
+        
+        st.session_state.debate_active = False
+        st.session_state.debate_phase = 'complete'
+
+# UI Components
+def render_header():
+            st.markdown("""
+    <div class="debate-header">
+        <h1>⚖️ AI Debate Chamber</h1>
+        <p>Real-time formal debate platform with voice interaction</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+def render_sidebar():
+    with st.sidebar:
+        st.markdown("### ⚙️ Debate Configuration")
+        
+        topics = [
+            "Should AI be regulated by the government?",
+            "Is remote work better than office work?",
+            "Should social media be held responsible for content?",
+            "Is UBI necessary for the future?",
+            "Custom topic"
+        ]
+        
+        selected = st.selectbox("Select Topic", topics)
+        
+        if selected == "Custom topic":
+            custom = st.text_input("Enter your topic:")
+            topic = custom if custom else topics[0]
+        else:
+            topic = selected
+        
+        st.session_state.max_rounds = st.slider("Number of Rounds", 1, 5, 3)
+        
+        st.markdown("---")
+        st.markdown("### 🎙️ Voice Settings")
+        
+        st.session_state.voice_enabled = st.checkbox("Enable Voice Input", value=True)
+        st.session_state.auto_advance = st.checkbox("Auto-advance Rounds", value=True)
+        
+        st.markdown("---")
+        st.markdown("### 📊 Status")
         
         col1, col2 = st.columns(2)
         with col1:
-            max_rounds = st.slider(
-                "Number of Rounds:",
-                min_value=1,
-                max_value=5,
-                value=st.session_state.debate_config["max_rounds"],
-                key="max_rounds_slider"
-            )
+            if CONFIG.get("openai_api_key"):
+                st.success("OpenAI ✓")
+            else:
+                st.error("OpenAI ✗")
         
         with col2:
-            time_limit = st.slider(
-                "Time per Argument (s):",
-                min_value=30,
-                max_value=300,
-                value=st.session_state.debate_config["time_limit"],
-                step=30,
-                key="time_limit_slider"
-            )
-        
-        st.session_state.debate_config["max_rounds"] = max_rounds
-        st.session_state.debate_config["time_limit"] = time_limit
-        
-        st.markdown("---")
-        
-        # Audio settings
-        st.markdown("### 🔊 Audio Settings")
-        
-        # Check if API keys are available
-        has_murf_key = bool(st.session_state.murf_api_key.strip())
-        has_openai_key = bool(st.session_state.openai_api_key.strip())
-        
-        audio_enabled = st.checkbox(
-            "Enable Voice Output",
-            value=st.session_state.audio_enabled,
-            disabled=not has_murf_key,
-            help="Enable AI voice responses (requires Murf AI API key)"
-        )
-        st.session_state.audio_enabled = audio_enabled
-        
-        voice_input = st.checkbox(
-            "Enable Voice Input",
-            value=st.session_state.voice_input_enabled,
-            disabled=not has_openai_key,
-            help="Enable voice-to-text for your arguments (requires OpenAI API key)"
-        )
-        st.session_state.voice_input_enabled = voice_input
-        
-        if audio_enabled:
-            voice_speed = st.slider(
-                "Speech Speed:",
-                min_value=0.5,
-                max_value=2.0,
-                value=1.0,
-                step=0.1,
-                key="voice_speed"
-            )
-            if DEBATE_SYSTEM_AVAILABLE:
-                MURF_CONFIG["speed"] = voice_speed
-        
-        st.markdown("---")
-        
-        # Action buttons
-        if not st.session_state.debate_active:
-            if st.button("🎯 **COMMENCE DEBATE**", use_container_width=True, type="primary"):
-                if topic and topic != "Custom Topic":
-                    start_debate(topic, max_rounds)
-                else:
-                    st.error("Please select or enter a valid debate topic.")
-        else:
-            if st.button("⛔ **ADJOURN DEBATE**", use_container_width=True, type="secondary"):
-                stop_debate()
-        
-        st.markdown("---")
-        
-        # Export options
-        st.markdown("### 📁 Export Data")
-        
-        col_export1, col_export2 = st.columns(2)
-        with col_export1:
-            if st.button("💾 Save Transcript", use_container_width=True):
-                save_transcript()
-        with col_export2:
-            if st.button("📊 Export Stats", use_container_width=True):
-                export_statistics()
+            if MURF_CONFIG.get("api_key"):
+                st.success("Murf AI ✓")
+            else:
 
-# Main debate interface
-def render_main_interface():
-    if not st.session_state.debate_active:
-        render_welcome_screen()
-    else:
-        render_debate_screen()
+                st.error("Murf AI ✗")
+        
+        return topic
 
-# Welcome screen with feature highlights
-def render_welcome_screen():
-    st.markdown("""
-    <div class="welcome-section">
-        <h2 style='font-family: "Playfair Display", serif; color: #2c3e50;'>
-            Welcome to the Murf Debate Chamber
-        </h2>
-        <p style='font-family: "Crimson Text", serif; color: #7f8c8d; font-size: 1.2rem;'>
-            Engage in sophisticated intellectual discourse with AI-powered opponents and impartial adjudication.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Feature highlights
-    st.markdown("### 🎯 Key Features")
-    col1, col2, col3 = st.columns(3)
+def render_debate_status():
+    """Show current debate status"""
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">🎙️</div>
-            <h4>Voice Integration</h4>
-            <p>Natural voice input and AI vocal responses for immersive debate experience</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"<div class='round-indicator'>Round {st.session_state.current_round}/{st.session_state.max_rounds}</div>", 
+                   unsafe_allow_html=True)
     
     with col2:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">⚖️</div>
-            <h4>Impartial Judging</h4>
-            <p>AI-powered evaluation based on logic, evidence, and rhetorical effectiveness</p>
-        </div>
-        """, unsafe_allow_html=True)
+        phase_text = st.session_state.debate_phase.title()
+        st.markdown(f"<div class='status-active'>Phase: {phase_text}</div>", unsafe_allow_html=True)
     
     with col3:
-        st.markdown("""
-        <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <h4>Detailed Analytics</h4>
-            <p>Comprehensive scoring, feedback, and performance metrics for improvement</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Quick start guide
-    st.markdown("---")
-    st.markdown("### 🚀 Quick Start Guide")
-    
-    guide_col1, guide_col2, guide_col3 = st.columns(3)
-    
-    with guide_col1:
-        st.markdown("""
-        <div class="elegant-card">
-            <h4>1. Configure</h4>
-            <p>Select your debate topic and adjust parameters in the sidebar</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with guide_col2:
-        st.markdown("""
-        <div class="elegant-card">
-            <h4>2. Commence</h4>
-            <p>Click "Commence Debate" to start your intellectual engagement</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with guide_col3:
-        st.markdown("""
-        <div class="elegant-card">
-            <h4>3. Debate</h4>
-            <p>Present your arguments and respond to AI counterpoints</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # System status
-    st.markdown("---")
-    st.markdown("### 🔧 System Status")
-    
-    status_col1, status_col2 = st.columns(2)
-    
-    with status_col1:
-        status = "🟢 Available" if DEBATE_SYSTEM_AVAILABLE else "🔴 Unavailable"
-        st.markdown(f"**Debate System:** {status}")
-        
-        audio_status = "🟢 Enabled" if st.session_state.audio_enabled else "⚪ Disabled"
-        st.markdown(f"**Voice Output:** {audio_status}")
-    
-    with status_col2:
-        integration_status = "🟢 Available" if DEBATE_INTEGRATION_AVAILABLE else "🟡 Simulation Mode"
-        st.markdown(f"**AI Integration:** {integration_status}")
-        
-        voice_input_status = "🟢 Enabled" if st.session_state.voice_input_enabled else "⚪ Disabled"
-        st.markdown(f"**Voice Input:** {voice_input_status}")
-
-# Active debate screen
-def render_debate_screen():
-    # Debate header with status
-    col_header1, col_header2, col_header3 = st.columns([2, 1, 2])
-    
-    with col_header1:
-        st.markdown(f"""
-        <div class="elegant-card">
-            <h3>Current Debate</h3>
-            <p style="color: #667eea; font-size: 1.2rem;">{st.session_state.current_topic}</p>
-            <span class="status-indicator status-active">Round {st.session_state.current_round} of {st.session_state.debate_config['max_rounds']}</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_header2:
-        speaker_status = "🎤 Your Turn" if st.session_state.current_speaker == 'user' else "🤖 AI's Turn"
-        status_class = "status-active" if st.session_state.current_speaker == 'user' else "status-waiting"
-        st.markdown(f"""
-        <div class="elegant-card" style="text-align: center;">
-            <h4>Current Speaker</h4>
-            <span class="status-indicator {status_class}">{speaker_status}</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_header3:
-        st.markdown(f"""
-        <div class="elegant-card">
-            <h4>Time Remaining</h4>
-            <div style="text-align: center; font-size: 2rem; color: #667eea;">
-                {st.session_state.debate_config['time_limit']}s
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Score dashboard
-    st.markdown("---")
-    st.markdown("### 📊 Score Dashboard")
-    
-    col_score1, col_score2, col_score3, col_score4 = st.columns(4)
-    
-    with col_score1:
-        st.markdown(f"""
-        <div class="score-display">
-            <div class="score-label">USER SCORE</div>
-            <div class="score-value">{st.session_state.user_score}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_score2:
-        st.markdown(f"""
-        <div class="score-display">
-            <div class="score-label">AI SCORE</div>
-            <div class="score-value">{st.session_state.ai_score}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_score3:
-        progress = min(st.session_state.current_round / st.session_state.debate_config["max_rounds"], 1.0)
-        st.markdown(f"""
-        <div class="elegant-card">
-            <h4>Round Progress</h4>
-            <div style="text-align: center;">
-                {st.session_state.current_round} / {st.session_state.debate_config['max_rounds']}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.progress(progress)
-    
-    with col_score4:
-        avg_user = calculate_average_score('user')
-        avg_ai = calculate_average_score('ai')
-        leader = "👤 You" if st.session_state.user_score > st.session_state.ai_score else "🤖 AI" if st.session_state.ai_score > st.session_state.user_score else "⚖️ Tie"
-        st.markdown(f"""
-        <div class="elegant-card">
-            <h4>Current Leader</h4>
-            <div style="text-align: center; font-size: 1.5rem; color: #667eea;">
-                {leader}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Debate content area
-    st.markdown("---")
-    tab1, tab2, tab3 = st.tabs(["🎭 **Live Debate**", "📜 **Transcript**", "📊 **Analysis**"])
-    
-    with tab1:
-        render_live_debate()
-    
-    with tab2:
-        render_transcript()
-    
-    with tab3:
-        render_analysis()
-
-# Live debate tab
-def render_live_debate():
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("### 👤 Your Position")
-        st.markdown(f"""
-        <div class="elegant-card">
-            <p style="font-size: 1.1rem; color: #2c3e50;">{st.session_state.user_position}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("### 💬 Your Argument")
-        
-        if st.session_state.current_speaker == 'user' and not st.session_state.waiting_for_ai:
-            with st.form(key="argument_form"):
-                user_argument = st.text_area(
-                    "Present your argument:",
-                    height=150,
-                    key="user_argument_text",
-                    value=st.session_state.get('transcribed_text', st.session_state.get('user_argument_text', '')),
-                    placeholder="Type your argument here... (Minimum 50 characters)"
-                )
-                
-                col_a, col_b = st.columns([2, 1])
-                with col_a:
-                    submit_button = st.form_submit_button("🚀 **SUBMIT ARGUMENT**", use_container_width=True)
-                with col_b:
-                    if st.session_state.voice_input_enabled:
-                        voice_button = st.form_submit_button("🎤 **VOICE INPUT**", use_container_width=True, type="secondary")
-                    else:
-                        voice_button = False
-                
-                if submit_button and user_argument:
-                    submit_user_argument(user_argument)
-                    if 'transcribed_text' in st.session_state:
-                        st.session_state.transcribed_text = ""
-                elif voice_button:
-                    record_voice_input()
-        else:
-            st.markdown("""
-            <div class="elegant-card">
-                <p style="text-align: center; color: #7f8c8d;">
-                    ⏳ Waiting for your turn to speak...
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("### 🤖 AI Position")
-        st.markdown(f"""
-        <div class="elegant-card">
-            <p style="font-size: 1.1rem; color: #2c3e50;">{st.session_state.ai_position}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("### 💭 AI's Response")
-        
-        if st.session_state.last_ai_argument:
-            st.markdown(f"""
-            <div class="argument-card ai">
-                <h4>🤖 AI Argument</h4>
-                <p>{st.session_state.last_ai_argument}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="elegant-card">
-                <p style="text-align: center; color: #7f8c8d;">
-                    ⏳ AI is preparing a response...
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Judge feedback section
-    st.markdown("---")
-    st.markdown("### ⚖️ Judge's Evaluation")
-    
-    if st.session_state.last_judge_feedback:
-        st.markdown(f"""
-        <div class="elegant-card" style="background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);">
-            <h4>🏆 Evaluation Results</h4>
-            <p style="font-size: 1.1rem; line-height: 1.6;">{st.session_state.last_judge_feedback}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="elegant-card">
-            <p style="text-align: center; color: #7f8c8d;">
-                📝 Awaiting arguments for evaluation...
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-# Transcript tab
-def render_transcript():
-    if st.session_state.debate_transcript:
-        for entry in st.session_state.debate_transcript:
-            card_class = "argument-card" if entry['speaker'] == 'user' else "argument-card ai"
-            speaker_icon = "👤" if entry['speaker'] == 'user' else "🤖"
-            
-            st.markdown(f"""
-            <div class="{card_class}">
-                <h4>{speaker_icon} {entry['speaker'].upper()} - Round {entry['round']}</h4>
-                <p>{entry['content']}</p>
-                <div style="margin-top: 10px;">
-                    <small style="color: #667eea;">Score: {entry.get('score', 'Pending')}/40</small>
-                    <small style="color: #7f8c8d; margin-left: 15px;">
-                        {datetime.fromisoformat(entry['timestamp']).strftime('%H:%M:%S')}
-                    </small>
+        if st.session_state.current_speaker:
+            speaker = "You" if st.session_state.current_speaker == 'user' else "AI"
+            # Add prominent turn indicator
+            if st.session_state.current_speaker == 'user':
+                st.markdown(f"""
+                <div style='background: #e8f5e8; border: 2px solid #28a745; border-radius: 10px; padding: 10px; text-align: center;'>
+                    <h4 style='color: #155724; margin: 0;'>🎯 YOUR TURN!</h4>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="elegant-card">
-            <p style="text-align: center; color: #7f8c8d;">
-                📄 No arguments yet. The transcript will appear here as the debate progresses.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style='background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 10px; text-align: center;'>
+                    <h4 style='color: #856404; margin: 0;'>🤖 AI's Turn</h4>
+                </div>
+                """, unsafe_allow_html=True)
+            st.markdown(f"<div class='status-waiting'>Turn: {speaker}</div>", unsafe_allow_html=True)
+    
+    with col4:
+        total_args = len(st.session_state.arguments)
+        st.markdown(f"<div class='status-complete'>Arguments: {total_args}</div>", unsafe_allow_html=True)
+    
+    # Debug information
+    if st.session_state.debate_active:
+        st.markdown("---")
+        st.markdown("### 🔍 Debug Info")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info(f"**Current Speaker:** {st.session_state.current_speaker}")
+            st.info(f"**Round:** {st.session_state.current_round}")
+            st.info(f"**Turn Count:** {st.session_state.turn_count}")
+        with col2:
+            user_args = [arg for arg in st.session_state.arguments if arg['speaker'] == 'user' and arg['round_number'] == st.session_state.current_round]
+            ai_args = [arg for arg in st.session_state.arguments if arg['speaker'] == 'ai' and arg['round_number'] == st.session_state.current_round]
+            st.info(f"**User args this round:** {len(user_args)}")
+            st.info(f"**AI args this round:** {len(ai_args)}")
+            st.info(f"**Round complete:** {len(user_args) > 0 and len(ai_args) > 0}")
 
-# Analysis tab
-def render_analysis():
+def render_score_display():
+    """Display current scores"""
     col1, col2 = st.columns(2)
     
+    total_user = sum(s['user_score'] for s in st.session_state.scores)
+    total_ai = sum(s['ai_score'] for s in st.session_state.scores)
+    
     with col1:
-        st.markdown("### 📈 Performance Analytics")
-        
-        if len(st.session_state.debate_transcript) > 0:
-            rounds = []
-            user_scores = []
-            ai_scores = []
-            
-            for entry in st.session_state.debate_transcript:
-                if entry.get('score'):
-                    rounds.append(f"Round {entry['round']}")
-                    if entry['speaker'] == 'user':
-                        user_scores.append(entry['score'])
-                    else:
-                        ai_scores.append(entry['score'])
-            
-            if rounds:
-                chart_data = {
-                    "Round": rounds,
-                    "User Score": user_scores,
-                    "AI Score": ai_scores
-                }
-                st.line_chart(chart_data, x="Round", y=["User Score", "AI Score"])
-        else:
-            st.markdown("""
-            <div class="elegant-card">
-                <p style="text-align: center; color: #7f8c8d;">
-                    📊 Performance data will appear after scored rounds.
-                </p>
+            st.markdown(f"""
+        <div class='score-display'>
+            <h3>👤 Your Score</h3>
+            <h1>{total_user}</h1>
             </div>
             """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("### 🎯 Key Metrics")
-        
-        col_metric1, col_metric2 = st.columns(2)
-        
-        with col_metric1:
-            avg_user = calculate_average_score('user')
-            st.metric("Avg. User Score", f"{avg_user:.1f}")
-            st.metric("Total Rounds", st.session_state.current_round - 1)
-        
-        with col_metric2:
-            avg_ai = calculate_average_score('ai')
-            st.metric("Avg. AI Score", f"{avg_ai:.1f}")
-            st.metric("Score Difference", abs(st.session_state.user_score - st.session_state.ai_score))
-    
-    st.markdown("---")
-    st.markdown("### 💡 Improvement Suggestions")
-    
-    suggestions = generate_improvement_suggestions()
-    if suggestions:
-        for suggestion in suggestions:
-            st.markdown(f"""
-            <div class="elegant-card" style="background: #fff3cd; border-left: 4px solid #ffc107;">
-                <p>💡 {suggestion}</p>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="elegant-card">
-            <p style="text-align: center; color: #7f8c8d;">
-                💡 Suggestions will appear based on your performance.
-            </p>
+        st.markdown(f"""
+        <div class='score-display'>
+            <h3>🤖 AI Score</h3>
+            <h1>{total_ai}</h1>
         </div>
         """, unsafe_allow_html=True)
 
-# Helper functions (keep the same as before)
-def start_debate(topic: str, max_rounds: int):
-    """Initialize and start a new debate."""
-    st.session_state.debate_active = True
-    st.session_state.current_topic = topic
-    st.session_state.current_round = 1
-    st.session_state.user_score = 0
-    st.session_state.ai_score = 0
-    st.session_state.debate_transcript = []
-    st.session_state.current_speaker = 'user'
-    st.session_state.waiting_for_ai = False
-    
-    # Clear any previous transcribed text
-    st.session_state.transcribed_text = ""
-    st.session_state.user_argument_text = ""
-    
-    # Initialize debate using the integration layer
-    result = st.session_state.debate_integration.start_debate(
-        topic, 
-        {"max_rounds": max_rounds, "time_limit": st.session_state.debate_config["time_limit"]}
-    )
-    
-    if result["success"]:
-        st.session_state.user_position = result["positions"]["user_position"]
-        st.session_state.ai_position = result["positions"]["ai_position"]
-        st.success(f"Debate commenced! Topic: {topic}")
-    else:
-        st.error(f"Failed to start debate: {result.get('error', 'Unknown error')}")
-        st.session_state.debate_active = False
-    
-    st.rerun()
-
-def stop_debate():
-    """Stop the current debate."""
-    st.session_state.debate_active = False
-    if DEBATE_SYSTEM_AVAILABLE:
+def render_user_input_section(controller):
+    """Render user input area"""
+    if st.session_state.current_speaker == 'user' and st.session_state.debate_active:
+        # Clear turn indicator - prominent display when it's user's turn
+        st.markdown("""
+        <div style='background: #e8f5e8; border: 3px solid #28a745; border-radius: 15px; padding: 20px; margin: 20px 0; text-align: center;'>
+            <h2 style='color: #155724; margin: 0;'>🎯 YOUR TURN TO SPEAK!</h2>
+            <p style='color: #155724; font-size: 18px; margin: 10px 0;'>Present your argument for: <strong>{}</strong></p>
+            <p style='color: #155724; font-size: 16px; margin: 5px 0;'>Round {}</p>
+        </div>
+        """.format(st.session_state.user_position, st.session_state.current_round), unsafe_allow_html=True)
+        
+        # Stop any audio playback
         audio_streamer.stop()
     
-    # Clear debate-related session state
-    st.session_state.transcribed_text = ""
-    st.session_state.user_argument_text = ""
-    
-    st.info("Debate has been adjourned.")
-    st.rerun()
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            if st.session_state.voice_enabled and openai_client:
+                if st.button("🎤 Voice Input", use_container_width=True, key="voice_btn"):
+                    with st.spinner("Listening..."):
+                        text = capture_voice_input()
+                        if text:
+                            st.session_state.user_argument = text
+                            st.rerun()
 
-def submit_user_argument(argument: str):
-    """Process user argument submission."""
-    if argument and len(argument) >= 50:
-        # Add to transcript
-        st.session_state.debate_transcript.append({
-            'speaker': 'user',
-            'round': st.session_state.current_round,
-            'content': argument,
-            'timestamp': datetime.now().isoformat(),
-            'score': None  # Will be updated after judging
-        })
+        with col2:
+            text_input = st.text_area(
+                "Or type your argument:",
+                value=st.session_state.user_argument,
+                height=100,
+                key="text_input"
+            )
+            
+            if text_input:
+                st.session_state.user_argument = text_input
         
-        # Switch to AI turn
-        st.session_state.current_speaker = 'ai'
-        st.session_state.waiting_for_ai = True
-        
-        # Use the debate integration to process the argument
-        result = st.session_state.debate_integration.submit_user_argument(argument)
-        
-        if result["success"]:
-            # Update scores
-            st.session_state.user_score += result["user_score"]
-            st.session_state.ai_score += result["ai_score"]
+        if st.session_state.user_argument:
+            st.info(f"Your argument: {st.session_state.user_argument[:200]}...")
             
-            # Add AI response to transcript
-            st.session_state.last_ai_argument = result["ai_response"]
-            st.session_state.debate_transcript.append({
-                'speaker': 'ai',
-                'round': st.session_state.current_round,
-                'content': result["ai_response"],
-                'timestamp': datetime.now().isoformat(),
-                'score': result["ai_score"]
-            })
+            if st.button("Submit Argument", type="primary", use_container_width=True):
+                success, msg = controller.process_user_argument(st.session_state.user_argument)
+                if success:
+                    # Judge the argument
+                    with st.spinner("Judge is evaluating..."):
+                        evaluation = controller.judge_argument(st.session_state.user_argument, 'user')
+                        
+                        # Speak judge feedback
+                        if MURF_CONFIG["api_key"]:
+                            speak_text_streaming(f"Judge feedback: {evaluation.reasoning}")
+                            audio_streamer.wait_until_complete()
+                    
+                    # Clear input and switch speakers
+                    st.session_state.user_argument = ""
+                    
+                    # Switch to AI's turn
+                    st.session_state.current_speaker = 'ai'
+                    
+                    # Check if round is complete after both speakers
+                    if controller.check_round_complete():
+                        controller.advance_round()
+                    
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+def render_ai_turn(controller):
+    """Handle AI's turn"""
+    if st.session_state.current_speaker == 'ai' and st.session_state.debate_active:
+        with st.spinner("AI is formulating response..."):
+            time.sleep(2)  # Dramatic pause
             
-            # Update user argument with score
-            for entry in st.session_state.debate_transcript:
-                if entry['speaker'] == 'user' and entry['round'] == st.session_state.current_round and entry['score'] is None:
-                    entry['score'] = result["user_score"]
+            # Generate AI argument
+            ai_argument = controller.generate_ai_argument()
             
-            # Set judge feedback
-            st.session_state.last_judge_feedback = f"User: {result['user_feedback']}\n\nAI: {result['ai_feedback']}"
+            # Display AI argument
+            st.markdown(f"""
+            <div class='ai-arg'>
+                <h4>🤖 AI Debater (Round {st.session_state.current_round})</h4>
+                <p>{ai_argument}</p>
+            </div>
+            """, unsafe_allow_html=True)
             
-            # Update round if complete
-            if result["round_complete"]:
-                st.session_state.current_round += 1
+            # Speak AI argument
+            if MURF_CONFIG["api_key"]:
+                with st.spinner("AI is speaking..."):
+                    speak_text_streaming(ai_argument)
+                    audio_streamer.wait_until_complete()
             
-            # Switch back to user turn
+            # Judge the argument
+            with st.spinner("Judge is evaluating..."):
+                time.sleep(1)
+                evaluation = controller.judge_argument(ai_argument, 'ai')
+                
+                # Display and speak judge feedback
+                st.markdown(f"""
+                <div class='judge-feedback'>
+                    <h4>⚖️ Judge Feedback</h4>
+                    <p>{evaluation.reasoning}</p>
+                    <p><strong>Score:</strong> {evaluation.total_score}/40</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if MURF_CONFIG["api_key"]:
+                    speak_text_streaming(f"Judge feedback: {evaluation.reasoning}")
+                    audio_streamer.wait_until_complete()
+            
+            # Switch back to user's turn
             st.session_state.current_speaker = 'user'
-            st.session_state.waiting_for_ai = False
             
-            st.success("Argument submitted and processed!")
-        else:
-            st.error(f"Error processing argument: {result.get('error', 'Unknown error')}")
-            # Fall back to simulation
-            simulate_ai_response()
-        
-        st.rerun()
-    else:
-        st.error("Argument must be at least 50 characters long.")
-
-def simulate_ai_response():
-    """Simulate AI response for demo purposes."""
-    # This is a placeholder - in real implementation, connect to debate system
-    ai_response = "This is a simulated AI response. In the actual system, this would be generated by the debate AI."
-    
-    st.session_state.last_ai_argument = ai_response
-    st.session_state.debate_transcript.append({
-        'speaker': 'ai',
-        'round': st.session_state.current_round,
-        'content': ai_response,
-        'timestamp': datetime.now().isoformat(),
-        'score': 28
-    })
-    
-    # Update user argument with simulated score
-    for entry in st.session_state.debate_transcript:
-        if entry['speaker'] == 'user' and entry['round'] == st.session_state.current_round and entry['score'] is None:
-            entry['score'] = 30
-    
-    # Set judge feedback
-    st.session_state.last_judge_feedback = "User: Good argument. AI: Standard response."
-    
-    # Update round and speaker
-    st.session_state.current_round += 1
-    st.session_state.current_speaker = 'user'
-    st.session_state.waiting_for_ai = False
-
-def record_voice_input():
-    """Handle voice input recording."""
-    if DEBATE_SYSTEM_AVAILABLE:
-        with st.spinner("🎤 Listening..."):
-            text = speech_to_text_whisper_api()
-            if text:
-                # Store the transcribed text in a different session state variable
-                st.session_state.transcribed_text = text
-                st.success(f"Transcribed: {text}")
-                # Update the form value for next render
-                st.session_state.user_argument_text = text
+            # Check if round is complete after both speakers
+            if controller.check_round_complete():
+                controller.advance_round()
+            
+            # Auto-advance if enabled
+            if st.session_state.auto_advance:
+                time.sleep(2)
                 st.rerun()
-    else:
-        st.warning("Voice input is not available. Please type your argument.")
 
-def calculate_average_score(speaker: str) -> float:
-    """Calculate average score for a speaker."""
-    scores = [entry['score'] for entry in st.session_state.debate_transcript 
-              if entry['speaker'] == speaker and entry.get('score')]
-    return sum(scores) / len(scores) if scores else 0
-
-def get_best_round(speaker: str) -> str:
-    """Get the best scoring round for a speaker."""
-    entries = [entry for entry in st.session_state.debate_transcript 
-               if entry['speaker'] == speaker and entry.get('score')]
-    if entries:
-        best = max(entries, key=lambda x: x['score'])
-        return f"Round {best['round']} ({best['score']}/40)"
-    return "N/A"
-
-def generate_improvement_suggestions() -> List[str]:
-    """Generate improvement suggestions based on performance."""
-    suggestions = []
-    
-    # Analyze scores
-    user_avg = calculate_average_score('user')
-    if user_avg > 0:
-        if user_avg < 20:
-            suggestions.append("Focus on strengthening logical coherence and evidence")
-        elif user_avg < 30:
-            suggestions.append("Good foundation - work on persuasiveness and relevance")
+def render_debate_transcript():
+    """Display debate transcript"""
+    if st.session_state.arguments:
+        st.markdown("### 📜 Debate Transcript")
+        
+        for arg in st.session_state.arguments:
+            if arg['speaker'] == 'user':
+                st.markdown(f"""
+                <div class='user-arg'>
+                    <h4>👤 You (Round {arg['round_number']})</h4>
+                    <p>{arg['content']}</p>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            suggestions.append("Excellent performance - maintain consistency")
-    
-    return suggestions
+                st.markdown(f"""
+                <div class='ai-arg'>
+                    <h4>🤖 AI (Round {arg['round_number']})</h4>
+                    <p>{arg['content']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Show judge feedback for this argument
+                relevant_score = next(
+                (s for s in st.session_state.scores 
+                 if s['round_number'] == arg['round_number'] and 
+                 (s['user_score'] > 0 if arg['speaker'] == 'user' else s['ai_score'] > 0)),
+                None
+            )
+            
+        if relevant_score:
+                score = relevant_score['user_score'] if arg['speaker'] == 'user' else relevant_score['ai_score']
+                st.markdown(f"""
+                <div class='judge-feedback'>
+                    <strong>Judge:</strong> {relevant_score['reasoning']}<br>
+                    <strong>Score:</strong> {score}/40
+                </div>
+                """, unsafe_allow_html=True)
 
-def save_transcript():
-    """Save debate transcript to file."""
-    if st.session_state.debate_transcript:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"debate_transcript_{timestamp}.json"
+def render_final_results():
+    """Display final debate results"""
+    if st.session_state.debate_phase == 'complete':
+        st.markdown("### 🏆 Final Results")
         
-        transcript_data = {
-            "topic": st.session_state.current_topic,
-            "date": datetime.now().isoformat(),
-            "transcript": st.session_state.debate_transcript,
-            "final_scores": {
-                "user": st.session_state.user_score,
-                "ai": st.session_state.ai_score
-            },
-            "config": st.session_state.debate_config
-        }
+        total_user = sum(s['user_score'] for s in st.session_state.scores)
+        total_ai = sum(s['ai_score'] for s in st.session_state.scores)
         
-        json_str = json.dumps(transcript_data, indent=2)
-        b64 = base64.b64encode(json_str.encode()).decode()
+        st.markdown(f"""
+        <div class='debate-header'>
+            <h2>{st.session_state.final_winner}</h2>
+            <p>Final Scores - You: {total_user} | AI: {total_ai}</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        st.sidebar.markdown(
-            f'<a href="data:application/json;base64,{b64}" download="{filename}">📥 Download Transcript</a>',
-            unsafe_allow_html=True
-        )
-        st.sidebar.success("Transcript ready for download!")
-    else:
-        st.sidebar.warning("No transcript to save yet.")
+        # Announce winner with voice
+        if MURF_CONFIG["api_key"]:
+            speak_text_streaming(f"The debate has concluded. {st.session_state.final_winner}")
+            audio_streamer.wait_until_complete()
 
-def export_statistics():
-    """Export debate statistics."""
-    stats = {
-        "topic": st.session_state.current_topic,
-        "rounds_completed": st.session_state.current_round - 1,
-        "user_total_score": st.session_state.user_score,
-        "ai_total_score": st.session_state.ai_score,
-        "user_average": calculate_average_score('user'),
-        "ai_average": calculate_average_score('ai'),
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    json_str = json.dumps(stats, indent=2)
-    b64 = base64.b64encode(json_str.encode()).decode()
-    
-    filename = f"debate_stats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    
-    st.sidebar.markdown(
-        f'<a href="data:application/json;base64,{b64}" download="{filename}">📥 Download Statistics</a>',
-        unsafe_allow_html=True
-    )
-    st.sidebar.success("Statistics ready for download!")
-
-# Main app
+# Main Application
 def main():
-    # Load custom CSS
-    load_custom_css()
-    
-    # Initialize session state
+    inject_custom_css()
     init_session_state()
-    
-    # Update configuration with API keys
-    update_config_with_api_keys()
-    
-    # Render header
     render_header()
     
-    # Render sidebar
-    render_sidebar()
+    topic = render_sidebar()
+    controller = DebateController()
     
-    # Render main interface
-    render_main_interface()
+    # Main control area
+    if not st.session_state.debate_active and st.session_state.debate_phase != 'complete':
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown(f"### Selected Topic: {topic}")
+            if st.button("🚀 Start Debate", type="primary", use_container_width=True):
+                with st.spinner("Setting up debate..."):
+                    controller.setup_debate(topic)
+                st.rerun()
+    
+    # Active debate area
+    if st.session_state.debate_active:
+        render_debate_status()
+        render_score_display()
+        
+        # Show positions
+        st.markdown(f"""
+        <div style='background: white; padding: 1rem; border-radius: 10px; margin: 1rem 0;'>
+            <strong>Your Position:</strong> {st.session_state.user_position}<br>
+            <strong>AI Position:</strong> {st.session_state.ai_position}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Handle turns
+        render_user_input_section(controller)
+        render_ai_turn(controller)
+    
+    # Show transcript
+    render_debate_transcript()
+    
+    # Show final results
+    render_final_results()
+    
+    # Reset button
+    if st.session_state.debate_phase == 'complete':
+        if st.button("Start New Debate", type="primary"):
+            for key in st.session_state.keys():
+                del st.session_state[key]
+            st.rerun()
 
 if __name__ == "__main__":
     main()
