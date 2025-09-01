@@ -1,40 +1,29 @@
-# LangChain and LangGraph
-langchain>=0.3.0
+# Core LangChain and LangGraph dependencies
 langchain-core>=0.3.0
 langgraph>=0.2.0
-langchain-ollama>=0.2.0
-langchain-openai>=0.2.0
+langchain-groq>=0.2.0
 
-# LLM Dependencies
-ollama>=0.1.7  # For local Ollama integration
-openai>=1.0.0  # For OpenAI API (optional)
+# LLM and API dependencies
+openai>=1.0.0
+groq>=0.4.0
 
-# State Management and Storage
-redis>=5.0.0  # For future caching (Phase 2+)
-sqlalchemy>=2.0.0  # For future database operations
-
-# Data Processing
+# Data processing and validation
 pydantic>=2.0.0
-typing-extensions>=4.8.0
-python-dotenv>=1.0.0  # For environment variables
-
-# Utilities
 numpy>=1.24.0
-pandas>=2.0.0  # For data analysis and scoring
 
-# Jupyter Notebook Support
-ipykernel>=6.25.0
-jupyter>=1.0.0
-notebook>=7.0.0
-ipywidgets>=8.1.0  # For interactive widgets
+# Environment and configuration
+python-dotenv>=1.0.0
 
-# Visualization (optional but recommended)
-matplotlib>=3.7.0  # For score visualization
-graphviz>=0.20.0  # For graph visualization
-pillow>=10.0.0  # For image handling
+# Web interface
+streamlit>=1.28.0
 
-# Development Tools
-pytest>=7.4.0  # For testing
-black>=23.0.0  # Code formatting
-isort>=5.12.0  # Import sorting
-pylint>=3.0.0  # Code linting
+# Audio processing
+speechrecognition>=3.10.0
+pydub>=0.25.1
+
+# HTTP requests
+requests>=2.31.0
+
+# Development and testing (optional but recommended)
+pytest>=7.4.0
+black>=23.0.0
