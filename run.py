@@ -1,23 +1,17 @@
 
 import os
-import json
-import random
 from typing import TypedDict, List, Dict, Literal, Optional, Annotated, Tuple, Any
 from enum import Enum
 import operator
-from datetime import datetime
 import time
 import re
 from difflib import SequenceMatcher
 import queue
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import atexit
 import tempfile
 
-# LangGraph imports
-from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
 
 # LangChain imports
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -40,9 +34,6 @@ from pydantic import BaseModel, Field
 from langchain_core.output_parsers import PydanticOutputParser
 
 # For embeddings and similarity
-import numpy as np
-from typing import Deque
-from collections import deque
 
 print("Enhanced libraries imported successfully!")
 
@@ -1090,9 +1081,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("Run 'streamlit run streamlit_app.py' for the interactive UI")
     print("=" * 60)
-    # You can add your main logic here or remove the lines below if not needed.
-    # print(f"Error: {e}")
-    # return None
+
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -1148,13 +1137,6 @@ llm = get_llm()
 judge_llm = get_llm()
 print(f"LLM initialized: {CONFIG['llm_type']}")
 
-# ============================================================================
-# STREAMLIT-COMPATIBLE VOICE FUNCTIONS
-# ============================================================================
-
-# ============================================================================
-# STREAMLIT-COMPATIBLE VOICE FUNCTIONS
-# ============================================================================
 
 def speech_to_text_whisper_streamlit() -> Optional[str]:
     """Streamlit-compatible speech to text using Whisper API"""
