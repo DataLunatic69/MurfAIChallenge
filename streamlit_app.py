@@ -1037,9 +1037,16 @@ def init_session_state():
 # Voice input handler
 def capture_voice_input():
     """Capture voice input using Whisper API"""
-    if not openai_client:
-        st.error("OpenAI API key not configured for voice input")
+    # Check for OpenAI API key in session state only
+    openai_api_key = st.session_state.get("openai_api_key")
+    
+    if not openai_api_key:
+        st.error("OpenAI API key not configured for voice input. Please add your API key in the sidebar.")
         return None
+    
+    # Create OpenAI client with session state key
+    from openai import OpenAI
+    client = OpenAI(api_key=openai_api_key)
     
     recognizer = sr.Recognizer()
     microphone = sr.Microphone()
@@ -1068,7 +1075,7 @@ def capture_voice_input():
         # Transcribe with Whisper
         with st.spinner("Processing speech..."):
             with open(audio_path, 'rb') as audio_file:
-                transcript = openai_client.audio.transcriptions.create(
+                transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     language="en",
@@ -1093,8 +1100,18 @@ def capture_voice_input():
 # Main debate controller (unchanged logic, using original class)
 class DebateController:
     def __init__(self):
-        self.llm = get_llm()
-        self.judge_llm = get_llm()
+        # Get API keys from session state
+        groq_api_key = st.session_state.get("groq_api_key")
+        if not groq_api_key:
+            st.error("Groq API key not configured. Please add your API key in the sidebar.")
+            return
+        
+        try:
+            self.llm = get_llm(groq_api_key)
+            self.judge_llm = get_llm(groq_api_key)
+        except Exception as e:
+            st.error(f"Failed to initialize LLM: {e}")
+            return
     
     def setup_debate(self, topic):
         """Initialize debate with topic and positions"""
@@ -1406,22 +1423,82 @@ def render_sidebar():
         
         st.markdown("""
         <div class="sidebar-section">
+            <h3 class="sidebar-title">🔑 API Configuration</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # API Key Configuration
+        with st.expander("Configure API Keys", expanded=False):
+            st.markdown("**Enter your API keys to enable full functionality:**")
+            
+            # OpenAI API Key
+            openai_key = st.text_input(
+                "OpenAI API Key",
+                type="password",
+                help="Required for voice transcription and AI responses",
+                key="openai_key_input"
+            )
+            
+            # Murf AI API Key
+            murf_key = st.text_input(
+                "Murf AI API Key", 
+                type="password",
+                help="Required for AI voice output",
+                key="murf_key_input"
+            )
+            
+            # Groq API Key (Optional)
+            groq_key = st.text_input(
+                "Groq API Key (Optional)",
+                type="password", 
+                help="Alternative to OpenAI for faster responses",
+                key="groq_key_input"
+            )
+            
+            # Save API Keys Button
+            if st.button("Save API Keys", key="save_api_keys"):
+                if openai_key:
+                    st.session_state.openai_api_key = openai_key
+                    st.success("OpenAI API key saved!")
+                if murf_key:
+                    st.session_state.murf_api_key = murf_key
+                    st.success("Murf AI API key saved!")
+                if groq_key:
+                    st.session_state.groq_api_key = groq_key
+                    st.success("Groq API key saved!")
+                
+                if not openai_key and not murf_key and not groq_key:
+                    st.warning("Please enter at least one API key.")
+        
+        st.markdown("""
+        <div class="sidebar-section">
             <h3 class="sidebar-title">📡 Connection Status</h3>
         </div>
         """, unsafe_allow_html=True)
         
-        # Connection status
+        # Connection status with session state check
         st.markdown('<div class="connection-status">', unsafe_allow_html=True)
         
-        if CONFIG.get("openai_api_key"):
+        # Check OpenAI connection (session state only)
+        openai_connected = st.session_state.get("openai_api_key")
+        if openai_connected:
             st.markdown('<div class="connection-item connection-success">✓ OpenAI</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="connection-item connection-error">✗ OpenAI</div>', unsafe_allow_html=True)
             
-        if MURF_CONFIG.get("api_key"):
+        # Check Murf AI connection (session state only)
+        murf_connected = st.session_state.get("murf_api_key")
+        if murf_connected:
             st.markdown('<div class="connection-item connection-success">✓ Murf AI</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="connection-item connection-error">✗ Murf AI</div>', unsafe_allow_html=True)
+        
+        # Check Groq connection (session state only)
+        groq_connected = st.session_state.get("groq_api_key")
+        if groq_connected:
+            st.markdown('<div class="connection-item connection-success">✓ Groq</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="connection-item connection-error">✗ Groq</div>', unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -1558,14 +1635,17 @@ def render_score_display():
 
 def render_user_turn_reminder():
     """Announce when it's the user's turn with voice"""
+    # Check for Murf AI API key in session state only
+    murf_api_key = st.session_state.get("murf_api_key")
+    
     if (st.session_state.current_speaker == 'user' and 
         st.session_state.debate_active and 
-        MURF_CONFIG.get("api_key") and
+        murf_api_key and
         'turn_announced' not in st.session_state):
         
         # Announce user's turn
         reminder_text = f"It's your turn to speak in round {st.session_state.current_round}. Present your argument."
-        speak_text_streaming(reminder_text)
+        speak_text_streaming(reminder_text, api_key=murf_api_key)
         audio_streamer.wait_until_complete()
         st.session_state.turn_announced = True
 
@@ -1596,7 +1676,9 @@ def render_user_input_section(controller):
         col1, col2 = st.columns([1, 2])
         
         with col1:
-            if st.session_state.voice_enabled and openai_client:
+            # Check for OpenAI API key in session state only
+            openai_api_key = st.session_state.get("openai_api_key")
+            if st.session_state.voice_enabled and openai_api_key:
                 voice_class = "voice-button listening-pulse" if st.session_state.is_listening else "voice-button"
                 voice_text = "🎤 Listening..." if st.session_state.is_listening else "🎤 Voice Input"
                 voice_icon = "🔴" if st.session_state.is_listening else "🎤"
@@ -1675,9 +1757,12 @@ def render_user_input_section(controller):
                             'timestamp': time.time()
                         }
                         
+                        # Check for Murf AI API key in session state only
+                        murf_api_key = st.session_state.get("murf_api_key")
+                        
                         # Speak judge feedback
-                        if MURF_CONFIG["api_key"]:
-                            speak_text_streaming(f"Judge feedback: {evaluation.reasoning}")
+                        if murf_api_key:
+                            speak_text_streaming(f"Judge feedback: {evaluation.reasoning}", api_key=murf_api_key)
                             audio_streamer.wait_until_complete()
                     
                     # Clear input and switch speakers
@@ -1722,10 +1807,13 @@ def render_ai_turn(controller):
             </div>
             """, unsafe_allow_html=True)
             
+            # Check for Murf AI API key in session state only
+            murf_api_key = st.session_state.get("murf_api_key")
+            
             # Speak AI argument
-            if MURF_CONFIG["api_key"]:
+            if murf_api_key:
                 with st.spinner("🔊 AI is speaking..."):
-                    speak_text_streaming(ai_argument)
+                    speak_text_streaming(ai_argument, api_key=murf_api_key)
                     audio_streamer.wait_until_complete()
             
             # Judge the argument
@@ -1761,8 +1849,8 @@ def render_ai_turn(controller):
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if MURF_CONFIG["api_key"]:
-                    speak_text_streaming(f"Judge feedback: {evaluation.reasoning}")
+                if murf_api_key:
+                    speak_text_streaming(f"Judge feedback: {evaluation.reasoning}", api_key=murf_api_key)
                     audio_streamer.wait_until_complete()
             
             # Switch back to user's turn
@@ -1893,9 +1981,12 @@ def render_final_results():
                 </div>
                 """, unsafe_allow_html=True)
         
+        # Check for Murf AI API key in session state only
+        murf_api_key = st.session_state.get("murf_api_key")
+        
         # Announce winner with voice
-        if MURF_CONFIG["api_key"]:
-            speak_text_streaming(f"The debate has concluded. {st.session_state.final_winner}")
+        if murf_api_key:
+            speak_text_streaming(f"The debate has concluded. {st.session_state.final_winner}", api_key=murf_api_key)
             audio_streamer.wait_until_complete()
 
 # Main Application

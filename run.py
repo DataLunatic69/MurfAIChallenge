@@ -37,20 +37,12 @@ from langchain_core.output_parsers import PydanticOutputParser
 
 print("Enhanced libraries imported successfully!")
 
-# Load environment variables
-from dotenv import load_dotenv
-load_dotenv()
-
-# Configuration
-groq_api_key = os.getenv("GROQ_API_KEY")
-openai_api_key = os.getenv("OPENAI_API_KEY")
-murf_api_key = os.getenv("MURF_API_KEY")
-
+# Configuration (no default API keys - users must enter their own)
 CONFIG = {
     "llm_type": "groq",
     "groq_model": "llama-3.3-70b-versatile",
-    "groq_api_key": groq_api_key,
-    "openai_api_key": openai_api_key,
+    "groq_api_key": None,  # Will be set by user in sidebar
+    "openai_api_key": None,  # Will be set by user in sidebar
     "max_rounds": 3,
     "time_per_round": 120,
     "debate_format": "simple",
@@ -68,9 +60,9 @@ CONFIG = {
     }
 }
 
-# Fixed Murf AI configuration
+# Murf AI configuration (no default API key)
 MURF_CONFIG = {
-    "api_key": murf_api_key,
+    "api_key": None,  # Will be set by user in sidebar
     "base_url": "https://api.murf.ai/v1",
     "voice_id": "en-US-natalie",
     "speed": 1.0,
@@ -90,15 +82,27 @@ WHISPER_CONFIG = {
     "phrase_time_limit": 10
 }
 
-def get_llm():
-    """Return a ChatGroq LLM instance using the configured model and API key."""
+def get_llm(groq_api_key=None):
+    """Return a ChatGroq LLM instance using the provided API key or session state."""
+    # Use provided key or try to get from session state (for Streamlit)
+    api_key = groq_api_key
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.session_state.get("groq_api_key")
+        except:
+            pass
+    
+    if not api_key:
+        raise ValueError("Groq API key not provided. Please add your API key in the sidebar.")
+    
     return ChatGroq(
-        groq_api_key=CONFIG["groq_api_key"],
+        groq_api_key=api_key,
         model_name=CONFIG.get("groq_model", "llama-3.3-70b-versatile")
     )
 
-# Initialize clients
-openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
+# Initialize clients (will be created dynamically with user-provided keys)
+openai_client = None
 
 
 # Setup ffmpeg paths (optional)
@@ -301,9 +305,12 @@ def smart_split_text(text: str, max_chunk_size: int = 400) -> List[str]:
     
     return chunks
 
-def text_to_speech_murf_corrected(text: str, voice_id: str = None) -> bytes:
+def text_to_speech_murf_corrected(text: str, voice_id: str = None, api_key: str = None) -> bytes:
     """Convert text to speech using Murf AI API with correct request format."""
-    if not MURF_CONFIG["api_key"]:
+    # Use provided API key or fall back to config
+    murf_api_key = api_key or MURF_CONFIG.get("api_key")
+    
+    if not murf_api_key:
         print("Murf API key not set.")
         return None
     
@@ -314,7 +321,7 @@ def text_to_speech_murf_corrected(text: str, voice_id: str = None) -> bytes:
     url = f"{MURF_CONFIG['base_url']}/speech/generate"
     
     headers = {
-        "api-key": MURF_CONFIG["api_key"],
+        "api-key": murf_api_key,
         "Content-Type": "application/json"
     }
     
@@ -379,11 +386,14 @@ def text_to_speech_murf_corrected(text: str, voice_id: str = None) -> bytes:
         print(f"Murf API error: {e}")
         return None
 
-def speak_text_streaming(text: str, voice_id: str = None, prefetch_count: int = 3):
+def speak_text_streaming(text: str, voice_id: str = None, prefetch_count: int = 3, api_key: str = None):
     """Convert text to speech and stream it for smooth playback using parallel fetching."""
     print(f"Speaking (streaming): {text[:100]}...")
     
-    if not MURF_CONFIG["api_key"]:
+    # Use provided API key or fall back to config
+    murf_api_key = api_key or MURF_CONFIG.get("api_key")
+    
+    if not murf_api_key:
         print("Murf API key not set.")
         return
     
@@ -399,7 +409,7 @@ def speak_text_streaming(text: str, voice_id: str = None, prefetch_count: int = 
     def fetch_chunk(chunk_data):
         """Fetch a single chunk."""
         index, chunk_text = chunk_data
-        audio_bytes = text_to_speech_murf_corrected(chunk_text, voice_id)
+        audio_bytes = text_to_speech_murf_corrected(chunk_text, voice_id, murf_api_key)
         return index, audio_bytes
     
     # Use ThreadPoolExecutor for parallel fetching
@@ -457,9 +467,18 @@ def speak_text(text: str, voice_id: str = None):
     """Convert text to speech and play it using streaming for smooth playback."""
     speak_text_streaming(text, voice_id)
 
-def speech_to_text_whisper_api() -> Optional[str]:
+def speech_to_text_whisper_api(openai_api_key=None) -> Optional[str]:
     """Convert speech to text using OpenAI's Whisper API."""
-    if not CONFIG["openai_api_key"]:
+    # Use provided key or try to get from session state (for Streamlit)
+    api_key = openai_api_key
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.session_state.get("openai_api_key")
+        except:
+            pass
+    
+    if not api_key:
         print("OpenAI API key not set.")
         return None
     
@@ -481,8 +500,12 @@ def speech_to_text_whisper_api() -> Optional[str]:
             audio_path = tmp.name
         
         try:
+            # Create OpenAI client with the API key
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            
             with open(audio_path, 'rb') as audio_file:
-                transcript = openai_client.audio.transcriptions.create(
+                transcript = client.audio.transcriptions.create(
                     model="whisper-1", file=audio_file, language="en", response_format="text"
                 )
             
@@ -573,11 +596,40 @@ class InteractiveDebateManager:
     """Manages interactive debate flow for Streamlit UI"""
     
     def __init__(self):
-        self.llm = get_llm()
-        self.judge_llm = get_llm()
+        # LLM instances will be created when needed with user-provided API keys
+        self.llm = None
+        self.judge_llm = None
         self.is_processing = False
         self.current_argument_queue = queue.Queue()
         self.response_queue = queue.Queue()
+    
+    def _get_llm(self):
+        """Get LLM instance with user-provided API key"""
+        if not self.llm:
+            try:
+                import streamlit as st
+                groq_api_key = st.session_state.get("groq_api_key")
+                if groq_api_key:
+                    self.llm = get_llm(groq_api_key)
+                else:
+                    raise ValueError("Groq API key not provided")
+            except Exception as e:
+                raise ValueError(f"Failed to initialize LLM: {e}")
+        return self.llm
+    
+    def _get_judge_llm(self):
+        """Get judge LLM instance with user-provided API key"""
+        if not self.judge_llm:
+            try:
+                import streamlit as st
+                groq_api_key = st.session_state.get("groq_api_key")
+                if groq_api_key:
+                    self.judge_llm = get_llm(groq_api_key)
+                else:
+                    raise ValueError("Groq API key not provided")
+            except Exception as e:
+                raise ValueError(f"Failed to initialize judge LLM: {e}")
+        return self.judge_llm
         
     def setup_topic(self, topic: str) -> Dict:
         """Setup debate topic and positions"""
@@ -590,7 +642,7 @@ class InteractiveDebateManager:
         FOR: [position supporting the proposition]
         AGAINST: [position opposing the proposition]"""
         
-        response = self.llm.invoke([HumanMessage(content=prompt)])
+        response = self._get_llm().invoke([HumanMessage(content=prompt)])
         lines = response.content.strip().split('\n')
         
         user_position = lines[0].replace("FOR:", "").strip() if lines else "In favor"
@@ -622,7 +674,7 @@ class InteractiveDebateManager:
         )
         
         # Extract key points
-        key_points = extract_key_points(argument, self.llm)
+        key_points = extract_key_points(argument, self._get_llm())
         
         # Analyze what points this rebuts
         rebuts_points = []
@@ -665,7 +717,7 @@ class InteractiveDebateManager:
         opponent_analysis = None
         if recent_user_args and CONFIG["enable_context_awareness"]:
             last_user_arg = recent_user_args[-1]
-            opponent_analysis = analyze_opponent_argument(last_user_arg["content"], self.llm)
+            opponent_analysis = analyze_opponent_argument(last_user_arg["content"], self._get_llm())
         
         # Build prompt
         system_prompt = f"""You are participating in a formal debate.
@@ -692,7 +744,7 @@ Weak points to address:
             HumanMessage(content="\n".join(user_prompt_parts))
         ]
         
-        response = self.llm.invoke(messages)
+        response = self._get_llm().invoke(messages)
         ai_argument = response.content
         
         # Check for repetition and regenerate if needed
@@ -700,7 +752,7 @@ Weak points to address:
         if is_repetitive:
             messages.append(AIMessage(content=ai_argument))
             messages.append(HumanMessage(content="This is too similar to previous arguments. Provide something completely different."))
-            response = self.llm.invoke(messages)
+            response = self._get_llm().invoke(messages)
             ai_argument = response.content
         
         return ai_argument
@@ -737,7 +789,7 @@ Provide your evaluation:"""
         ]
         
         try:
-            response = self.judge_llm.invoke(messages)
+            response = self._get_judge_llm().invoke(messages)
             evaluation = parser.parse(response.content)
         except Exception as e:
             print(f"Judge parsing error: {e}")
@@ -906,7 +958,26 @@ def topic_setup_node(state: DebateState) -> Dict:
         FOR: [position supporting the proposition]
         AGAINST: [position opposing the proposition]"""
         
-        response = llm.invoke([HumanMessage(content=prompt)])
+        # Get LLM with user-provided API key
+        try:
+            import streamlit as st
+            groq_api_key = st.session_state.get("groq_api_key")
+            if groq_api_key:
+                llm_instance = get_llm(groq_api_key)
+                response = llm_instance.invoke([HumanMessage(content=prompt)])
+            else:
+                raise ValueError("Groq API key not provided")
+        except Exception as e:
+            print(f"Failed to get LLM: {e}")
+            # Fallback to default positions
+            user_position = "In favor"
+            ai_position = "Against"
+            return {
+                "topic": topic, "user_position": user_position, "ai_position": ai_position,
+                "phase": DebatePhase.SETUP, "debate_active": True, "max_rounds": CONFIG["max_rounds"],
+                "round_number": 1, "turn_count": 0, "debate_context": debate_context,
+                "repetition_warnings": [], "argument_summaries": {}
+            }
         lines = response.content.strip().split('\n')
         user_position = lines[0].replace("FOR:", "").strip() if lines else "In favor"
         ai_position = lines[1].replace("AGAINST:", "").strip() if len(lines) > 1 else "Against"
@@ -945,12 +1016,17 @@ def voice_input_node(state: DebateState) -> Dict:
     
     # Voice input logic
     user_argument = None
-    if CONFIG["openai_api_key"]:
-        use_voice = input("Use voice input? (y/n): ").lower() == 'y'
-        if use_voice:
-            print("\nSpeak clearly into your microphone...")
-            input("Press Enter when ready to start listening...")
-            user_argument = speech_to_text_whisper_api()
+    try:
+        import streamlit as st
+        openai_api_key = st.session_state.get("openai_api_key")
+        if openai_api_key:
+            use_voice = input("Use voice input? (y/n): ").lower() == 'y'
+            if use_voice:
+                print("\nSpeak clearly into your microphone...")
+                input("Press Enter when ready to start listening...")
+                user_argument = speech_to_text_whisper_api(openai_api_key)
+    except:
+        pass
     
     # Fallback to text input
     if not user_argument:
@@ -980,7 +1056,16 @@ def voice_input_node(state: DebateState) -> Dict:
         user_argument = "I agree with my position and believe it's the right stance."
     
     # Process argument
-    key_points = extract_key_points(user_argument, llm)
+    try:
+        import streamlit as st
+        groq_api_key = st.session_state.get("groq_api_key")
+        if groq_api_key:
+            llm_instance = get_llm(groq_api_key)
+            key_points = extract_key_points(user_argument, llm_instance)
+        else:
+            key_points = []
+    except:
+        key_points = []
     rebuts_points = []
     if recent_args and CONFIG["enable_context_awareness"]:
         context = state.get("debate_context", {})
@@ -1006,19 +1091,28 @@ def voice_input_node(state: DebateState) -> Dict:
 # TEST FUNCTIONS
 # ============================================================================
 
-def test_murf_integration():
+def test_murf_integration(murf_api_key=None):
     """Test the streaming Murf integration."""
     print("\nTesting Streaming Murf AI integration...")
     
-    if not MURF_CONFIG["api_key"]:
-        print("MURF_API_KEY not set in environment variables")
+    # Use provided key or try to get from session state (for Streamlit)
+    api_key = murf_api_key
+    if not api_key:
+        try:
+            import streamlit as st
+            api_key = st.session_state.get("murf_api_key")
+        except:
+            pass
+    
+    if not api_key:
+        print("Murf API key not provided. Please add your API key in the sidebar.")
         return False
     
     test_text = "Hello, this is a test of the Murf AI streaming system."
     print(f"Testing streaming with text: '{test_text}'")
     
     try:
-        speak_text_streaming(test_text)
+        speak_text_streaming(test_text, api_key=api_key)
         print("Waiting for playback to complete...")
         audio_streamer.wait_until_complete(timeout=10)
         print("Streaming audio test successful!")
@@ -1132,15 +1226,20 @@ Argument to analyze:
             weak_points=["Could use more specific evidence"]
         )
 
-# Initialize LLM instances
-llm = get_llm()
-judge_llm = get_llm()
-print(f"LLM initialized: {CONFIG['llm_type']}")
+# Initialize LLM instances (will be created dynamically with user-provided keys)
+llm = None
+judge_llm = None
+print(f"LLM will be initialized with user-provided API keys")
 
 
 def speech_to_text_whisper_streamlit() -> Optional[str]:
     """Streamlit-compatible speech to text using Whisper API"""
-    if not CONFIG["openai_api_key"]:
+    try:
+        import streamlit as st
+        openai_api_key = st.session_state.get("openai_api_key")
+        if not openai_api_key:
+            return None
+    except:
         return None
     
     recognizer = sr.Recognizer()
@@ -1168,9 +1267,13 @@ def speech_to_text_whisper_streamlit() -> Optional[str]:
             audio_path = tmp.name
         
         try:
+            # Create OpenAI client with session state API key
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_api_key)
+            
             # Transcribe with Whisper
             with open(audio_path, 'rb') as audio_file:
-                transcript = openai_client.audio.transcriptions.create(
+                transcript = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     language="en",
